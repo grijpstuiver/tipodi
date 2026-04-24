@@ -395,6 +395,7 @@ const Sync = {
   lastError: null,
   pushTimer: null,
   suppressPush: false, // true while applying incoming remote state
+  channel: null,       // Supabase Realtime subscription
 };
 
 const SORT_LABELS = { recent: 'Recent', frequency: 'Frequent', quizzed: 'Quizzed' };
@@ -1296,6 +1297,69 @@ async function syncInit() {
   updateSyncUI();
 }
 
+// Pull-only sync: fetch cloud, merge into local, never push back.
+// Used by realtime/visibility/focus handlers when a remote change arrives
+// or when the app returns to the foreground.
+async function syncPull() {
+  if (!Sync.client || !Sync.session) return;
+  if (Sync.status === 'syncing') return;
+  Sync.status = 'syncing';
+  updateSyncUI();
+  try {
+    const cloudDoc = await doPull();
+    if (cloudDoc && Array.isArray(cloudDoc.vocab)) {
+      cloudDoc.vocab.forEach(w => {
+        if (w.updated == null) w.updated = w.added || 0;
+        if (w.deleted == null) w.deleted = false;
+        if (!Array.isArray(w.tags)) w.tags = [];
+        if (w.notes == null) w.notes = '';
+      });
+      const merged = mergeVocab(State.vocab, cloudDoc.vocab);
+      // Only apply if something actually changed (by stable stringify)
+      const before = JSON.stringify(State.vocab);
+      const after = JSON.stringify(merged);
+      if (before !== after) {
+        Sync.suppressPush = true;
+        State.vocab = merged;
+        save();
+        Sync.suppressPush = false;
+        renderVocab();
+        updateFilterBtn();
+      }
+    }
+    Sync.status = 'idle';
+    Sync.lastSyncedAt = Date.now();
+    Sync.lastError = null;
+  } catch (e) {
+    console.error('pull failed', e);
+    Sync.status = 'error';
+    Sync.lastError = e.message || String(e);
+  }
+  updateSyncUI();
+}
+
+// Subscribe to postgres_changes on our row for near-instant cross-device updates.
+function setupRealtime() {
+  if (!Sync.client || !Sync.session) return;
+  teardownRealtime();
+  const uid = Sync.session.user.id;
+  Sync.channel = Sync.client
+    .channel('vocab-' + uid)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'vocab_docs',
+      filter: `user_id=eq.${uid}`,
+    }, () => { syncPull(); })
+    .subscribe();
+}
+function teardownRealtime() {
+  if (Sync.channel && Sync.client) {
+    try { Sync.client.removeChannel(Sync.channel); } catch {}
+    Sync.channel = null;
+  }
+}
+
 function purgeOldDeletions() {
   const cutoff = Date.now() - 90 * 86400000;
   const before = State.vocab.length;
@@ -1421,9 +1485,22 @@ $('sync-cancel-btn').addEventListener('click', () => {
 $('sync-code').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); verifyOtp(); }
 });
-$('sync-push-btn').addEventListener('click', () => {
+$('sync-push-btn').addEventListener('click', async () => {
   clearTimeout(Sync.pushTimer);
-  doPush();
+  await syncPull();
+  await doPush();
+});
+
+// Pull when the app comes back to foreground (covers iOS PWA resume,
+// tab switch, screen unlock). Belt-and-suspenders alongside Realtime.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Sync.session) syncPull();
+});
+window.addEventListener('pageshow', () => {
+  if (Sync.session) syncPull();
+});
+window.addEventListener('focus', () => {
+  if (Sync.session) syncPull();
 });
 $('sync-signout-btn').addEventListener('click', signOutClicked);
 
@@ -1466,22 +1543,20 @@ setTimeout(() => input.focus(), 50);
     });
     Sync.available = true;
 
-    Sync.client.auth.onAuthStateChange((event, session) => {
+    Sync.client.auth.onAuthStateChange(async (event, session) => {
       const wasSignedIn = !!Sync.session;
       Sync.session = session;
       updateSyncUI();
       if (session && !wasSignedIn) {
-        syncInit();
+        await syncInit();
+        setupRealtime();
       } else if (!session && wasSignedIn) {
         Sync.lastSyncedAt = null;
         clearTimeout(Sync.pushTimer);
+        teardownRealtime();
       }
     });
-
-    const { data } = await Sync.client.auth.getSession();
-    Sync.session = data.session || null;
-    updateSyncUI();
-    if (Sync.session) syncInit();
+    // INITIAL_SESSION fires from onAuthStateChange above — no manual trigger needed.
   } catch (e) {
     console.warn('Sync unavailable:', e);
     Sync.available = false;
