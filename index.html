@@ -1204,6 +1204,19 @@ function applySM2(w, q) {
 // ===== Sync (Supabase) =====
 function updAt(w) { return w.updated || w.added || 0; }
 
+// Wrap any promise with a hard timeout so a hung network call can't leave
+// the UI stuck on amber. Rejects with a descriptive error on timeout.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(
+      () => rej(new Error(`${label || 'sync'} timed out after ${ms/1000}s`)),
+      ms
+    )),
+  ]);
+}
+const SYNC_TIMEOUT_MS = 15000;
+
 function mergeVocab(local, cloud) {
   const map = new Map();
   for (const w of cloud) map.set(w.it, w);
@@ -1226,13 +1239,14 @@ async function doPush() {
   updateSyncUI();
   try {
     const doc = { vocab: State.vocab, schema: 1 };
-    const { error } = await Sync.client
-      .from('vocab_docs')
-      .upsert({
+    const { error } = await withTimeout(
+      Sync.client.from('vocab_docs').upsert({
         user_id: Sync.session.user.id,
         data: doc,
         updated_at: new Date().toISOString(),
-      });
+      }),
+      SYNC_TIMEOUT_MS, 'push'
+    );
     if (error) throw error;
     Sync.status = 'idle';
     Sync.lastSyncedAt = Date.now();
@@ -1248,11 +1262,14 @@ async function doPush() {
 
 async function doPull() {
   if (!Sync.client || !Sync.session) return null;
-  const { data, error } = await Sync.client
-    .from('vocab_docs')
-    .select('data, updated_at')
-    .eq('user_id', Sync.session.user.id)
-    .maybeSingle();
+  const { data, error } = await withTimeout(
+    Sync.client
+      .from('vocab_docs')
+      .select('data, updated_at')
+      .eq('user_id', Sync.session.user.id)
+      .maybeSingle(),
+    SYNC_TIMEOUT_MS, 'pull'
+  );
   if (error) throw error;
   return data ? data.data : null;
 }
@@ -1491,6 +1508,13 @@ $('sync-code').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); verifyOtp(); }
 });
 $('sync-push-btn').addEventListener('click', async () => {
+  // Force-unstick: if a previous sync operation hung (shouldn't happen now
+  // with timeouts, but belt-and-suspenders), clear the status so we retry.
+  if (Sync.status === 'syncing') {
+    Sync.status = 'idle';
+    Sync.lastError = null;
+    updateSyncUI();
+  }
   clearTimeout(Sync.pushTimer);
   await syncPull();
   await doPush();
