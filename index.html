@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tipo di">
+<meta name="theme-color" content="#111111">
+<title>Tipo di</title>
+<style>
+:root {
+  --bg: #111;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --text: #f5f5f7;
+  --muted: #8e8e93;
+  --accent: #30d158;
+  --accent-2: #0a84ff;
+  --phrase: #5e5ce6;
+  --phrase-bg: #1e1c3a;
+  --danger: #ff453a;
+  --warn: #ff9f0a;
+  --scale: 1;
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+button, input, textarea { font: inherit; color: inherit; }
+button { background: var(--surface-2); border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
+button:active { opacity: 0.6; }
+.btn-primary { background: var(--accent); color: #000; font-weight: 600; }
+.btn-danger { background: var(--danger); color: #fff; }
+.icon-btn { background: transparent; padding: 2px 6px; font-size: 18px; line-height: 1; }
+input[type=text] { background: var(--surface); border: 1px solid var(--surface-2);
+  border-radius: 10px; padding: 10px 12px; width: 100%; font-size: 16px; outline: none; }
+input[type=text]:focus { border-color: var(--accent); }
+.hidden { display: none !important; }
+
+#app { display: flex; flex-direction: column; height: 100%;
+  padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
+
+/* ===== Vocabulary ===== */
+#vocab { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#vocab-header { padding: 10px; background: var(--surface); flex-shrink: 0;
+  border-bottom: 1px solid var(--surface-2); }
+#vocab-header .title { font-size: 13px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 8px; display: flex; justify-content: space-between;
+  align-items: center; }
+#vocab-header .header-right { display: flex; align-items: center; gap: 10px; }
+#vocab-header .count { color: var(--muted); font-weight: 400; }
+
+#vocab-toolbar { display: flex; gap: 6px; padding: 6px 8px; background: var(--bg);
+  border-bottom: 1px solid var(--surface-2); flex-shrink: 0; align-items: center;
+  overflow-x: auto; }
+.toolbar-btn { background: var(--surface); font-size: 12px; padding: 6px 10px;
+  border-radius: 999px; white-space: nowrap; color: var(--muted); }
+.toolbar-btn.active { background: var(--accent-2); color: #fff; }
+
+#vocab-list { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+  min-height: 0; -webkit-overflow-scrolling: touch; }
+.word { background: var(--surface); padding: 10px 12px; border-radius: 10px;
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  border-left: 3px solid transparent; }
+.word.phrase { background: var(--phrase-bg); border-left-color: var(--phrase); }
+.word.just-added { animation: pop 0.25s ease; }
+@keyframes pop {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.word .w { flex: 1; min-width: 0; }
+.word .w .it { font-weight: 600; font-size: calc(15px * var(--scale)); }
+.word.phrase .w .it { color: #cbc8ff; }
+.word .w .en { font-size: calc(12px * var(--scale)); color: var(--muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.word .w .en.loading { opacity: 0.5; font-style: italic; }
+.word .w .meta { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.word .w .tagline { font-size: 10px; color: var(--muted); }
+.word .rank { font-size: 10px; background: var(--surface-2); padding: 3px 7px;
+  border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.word .reps { font-size: 10px; background: var(--surface-2); padding: 3px 7px;
+  border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.word .due { font-size: 10px; color: var(--warn); font-weight: 600; }
+.word .check { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; color: #000;
+  flex-shrink: 0; }
+.word .check.sel { background: var(--accent); }
+
+#vocab-footer { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--surface-2); flex-shrink: 0; }
+#vocab-footer button { flex: 1; }
+
+/* ===== Modals ===== */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex;
+  align-items: flex-end; z-index: 10; }
+.modal-content { background: var(--bg); width: 100%; max-height: 88%; border-radius: 16px 16px 0 0;
+  display: flex; flex-direction: column; padding-bottom: var(--safe-bottom); animation: slide 0.2s ease; }
+@keyframes slide { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-header { padding: 14px; display: flex; justify-content: space-between;
+  align-items: flex-start; border-bottom: 1px solid var(--surface-2); gap: 10px; }
+.modal-header .close { background: var(--surface-2); width: 32px; height: 32px;
+  border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0; }
+.modal-body { flex: 1; overflow: auto; padding: 14px; -webkit-overflow-scrolling: touch; }
+.modal-footer { padding: 10px; border-top: 1px solid var(--surface-2); display: flex; gap: 8px; flex-shrink: 0; }
+.modal-footer button { flex: 1; }
+
+.lookup-section { margin-bottom: 14px; }
+.lookup-section h4 { color: var(--muted); font-size: 11px; text-transform: uppercase;
+  margin-bottom: 6px; letter-spacing: 0.5px; }
+.lookup-section .content { background: var(--surface); padding: 10px 12px; border-radius: 10px;
+  line-height: 1.5; font-size: 14px; }
+.lookup-section .content a { color: var(--accent-2); }
+.lookup-section .content em { color: var(--muted); font-style: normal; font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.4px; }
+.lookup-section .content .def { margin: 4px 0; }
+
+/* Editable lookup title */
+#lookup-word { cursor: text; touch-action: manipulation; user-select: none;
+  -webkit-user-select: none; }
+#lookup-word:hover { text-decoration: underline dotted rgba(255,255,255,0.3);
+  text-underline-offset: 4px; }
+#edit-title-input { background: var(--surface); border: 1px solid var(--accent);
+  border-radius: 8px; padding: 4px 8px; font-size: 22px; font-weight: 600;
+  color: var(--text); width: 100%; outline: none; font-family: inherit; }
+
+/* Word chips (phrase breakdown) */
+.word-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--surface-2); padding: 6px 10px; border-radius: 999px;
+  font-size: 13px; cursor: pointer; color: var(--text); border: 1px solid transparent; }
+.chip.known { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+
+/* Phrase list (reverse lookup) */
+.phrase-link { padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--phrase);
+  background: var(--phrase-bg); margin-bottom: 6px; font-size: 13px; }
+.phrase-link:last-child { margin-bottom: 0; }
+.phrase-link .en { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+/* Notes textarea */
+.notes-area { width: 100%; min-height: 80px; max-height: 240px; background: var(--surface);
+  border: 1px solid var(--surface-2); border-radius: 10px; padding: 10px 12px;
+  color: var(--text); resize: vertical; font: inherit; line-height: 1.5; outline: none;
+  font-size: 14px; }
+.notes-area:focus { border-color: var(--accent); }
+
+/* Tags */
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; }
+.tag-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2);
+  padding: 4px 4px 4px 10px; border-radius: 999px; font-size: 12px; color: var(--text); }
+.tag-chip button { background: transparent; padding: 2px 8px; color: var(--muted);
+  font-size: 14px; line-height: 1; border-radius: 999px; }
+.tag-input { width: 100%; background: transparent; border: none; padding: 6px 0;
+  color: var(--text); font-size: 13px; outline: none; }
+
+/* Settings / Filter rows */
+.setting-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--surface); border-radius: 10px; cursor: pointer;
+  margin-bottom: 8px; user-select: none; }
+.setting-row input[type=checkbox], .setting-row input[type=radio] {
+  width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; }
+.setting-row input[type=range] { flex-shrink: 0; accent-color: var(--accent); }
+.setting-row .label { flex: 1; }
+.setting-row .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.section-heading { color: var(--muted); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; margin: 18px 0 8px; }
+.section-heading:first-child { margin-top: 0; }
+
+/* Review modal */
+#review-modal .modal-content { height: 100%; max-height: 100%; }
+.review-progress { padding: 8px 14px; text-align: center; color: var(--muted); font-size: 12px; }
+.review-card { flex: 1; background: var(--surface); margin: 14px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
+  cursor: pointer; min-height: 200px; }
+.review-card .face { font-size: 28px; font-weight: 600; }
+.review-card .back { font-size: 20px; color: var(--muted); margin-top: 16px; font-weight: 400; }
+.review-card .hint { font-size: 11px; color: var(--muted); margin-top: 18px; font-weight: 400; }
+.review-rating { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px; }
+.review-rating button { font-size: 13px; padding: 16px 4px; }
+.review-done { flex: 1; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px; color: var(--muted); }
+
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="vocab">
+    <div id="vocab-header">
+      <div class="title">
+        <span>Tipo di</span>
+        <span class="header-right">
+          <span class="count" id="vocab-count"></span>
+          <button id="settings-btn" class="icon-btn" aria-label="Settings">⚙</button>
+        </span>
+      </div>
+      <input type="text" id="word-input" placeholder="Type a word or phrase, press return…"
+             autocapitalize="none" autocorrect="off" spellcheck="false"
+             enterkeyhint="done" inputmode="text">
+    </div>
+    <div id="vocab-toolbar">
+      <button class="toolbar-btn" id="sort-btn">Sort: Recent</button>
+      <button class="toolbar-btn" id="filter-btn">Filter</button>
+    </div>
+    <div id="vocab-list"><div class="empty">No words yet. Type one above and press return.</div></div>
+    <div id="vocab-footer">
+      <button id="select-btn">Select</button>
+      <button id="review-btn" class="btn-primary">Review</button>
+    </div>
+  </section>
+</div>
+
+<div class="modal hidden" id="lookup-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div id="lookup-word" style="font-size: 22px; font-weight: 600;"></div>
+        <div id="lookup-rank" style="font-size: 12px; color: var(--muted); margin-top: 2px;"></div>
+      </div>
+      <button class="close" id="lookup-close">✕</button>
+    </div>
+    <div class="modal-body" id="lookup-body"></div>
+    <div class="modal-footer">
+      <button id="lookup-delete" class="btn-danger">Delete</button>
+      <button id="lookup-add" class="btn-primary hidden">Add to vocabulary</button>
+      <button id="lookup-close-2" class="btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="settings-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div style="font-weight: 600;">Settings</div>
+      <button class="close" id="settings-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="setting-row">
+        <input type="checkbox" id="setting-hide-tr">
+        <span class="label">Hide translations in overview
+          <div class="sub">You'll still see them inside the inspector.</div>
+        </span>
+      </label>
+      <div class="setting-row">
+        <span class="label">Word scale
+          <div class="sub" id="scale-value">100%</div>
+        </span>
+        <input type="range" id="setting-scale" min="0.8" max="1.6" step="0.05" style="width: 140px;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="filter-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div style="font-weight: 600;">Filter</div>
+      <button class="close" id="filter-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-heading">Type</div>
+      <label class="setting-row"><input type="radio" name="filter-type" value="all"><span class="label">All entries</span></label>
+      <label class="setting-row"><input type="radio" name="filter-type" value="word"><span class="label">Words only</span></label>
+      <label class="setting-row"><input type="radio" name="filter-type" value="phrase"><span class="label">Phrases only</span></label>
+      <div class="section-heading">Themes</div>
+      <div id="filter-tags"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="filter-clear">Clear all</button>
+      <button id="filter-done" class="btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="review-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div style="font-weight: 600;">Review</div>
+      <button class="close" id="review-close">✕</button>
+    </div>
+    <div class="review-progress" id="review-progress"></div>
+    <div class="review-card" id="review-card"></div>
+    <div class="review-rating" id="review-rating"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ===== Storage =====
+const LS_KEY = 'tipodi.v1';
+const FREQ_KEY = 'tipodi.freq.v1';
+const SETTINGS_KEY = 'tipodi.settings.v1';
+
+const State = {
+  vocab: [],
+  freq: null,
+  selectMode: false,
+  selected: new Set(),
+  lookup: null,
+  review: null,
+  justAdded: null,
+};
+
+const Settings = {
+  hideTranslations: false,
+  scale: 1,
+  sortBy: 'recent',         // 'recent' | 'frequency' | 'quizzed'
+  filterType: 'all',        // 'all' | 'word' | 'phrase'
+  filterTags: [],           // string[]
+};
+
+const SORT_LABELS = { recent: 'Recent', frequency: 'Frequent', quizzed: 'Quizzed' };
+const SORT_ORDER = ['recent', 'frequency', 'quizzed'];
+
+function load() {
+  try { State.vocab = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch {}
+  try { State.freq = JSON.parse(localStorage.getItem(FREQ_KEY) || 'null'); } catch {}
+  try { Object.assign(Settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
+  if (!Settings.scale || isNaN(Settings.scale)) Settings.scale = 1;
+  if (!SORT_LABELS[Settings.sortBy]) Settings.sortBy = 'recent';
+  if (!['all','word','phrase'].includes(Settings.filterType)) Settings.filterType = 'all';
+  if (!Array.isArray(Settings.filterTags)) Settings.filterTags = [];
+}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(State.vocab)); }
+function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(Settings)); }
+
+// ===== Util =====
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function isPhrase(it) { return /\s/.test((it || '').trim()); }
+function tokenize(phrase) {
+  return (phrase || '').split(/\s+/)
+    .map(w => w.toLowerCase().replace(/[^\p{L}'-]/gu, ''))
+    .filter(w => w.length > 0);
+}
+function phrasesContaining(word) {
+  const w = word.toLowerCase();
+  return State.vocab.filter(v => isPhrase(v.it) && tokenize(v.it).includes(w));
+}
+function allTags() {
+  const s = new Set();
+  State.vocab.forEach(w => (w.tags || []).forEach(t => s.add(t)));
+  return [...s].sort();
+}
+
+// ===== Frequency list =====
+async function loadFreq() {
+  if (State.freq) return;
+  try {
+    const r = await fetch('https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/it/it_50k.txt');
+    if (!r.ok) throw new Error('freq fetch failed');
+    const txt = await r.text();
+    const map = {};
+    const lines = txt.split('\n');
+    const limit = Math.min(lines.length, 10000);
+    for (let i = 0; i < limit; i++) {
+      const word = lines[i].split(' ')[0];
+      if (word) map[word.toLowerCase()] = i + 1;
+    }
+    State.freq = map;
+    try { localStorage.setItem(FREQ_KEY, JSON.stringify(map)); } catch {}
+  } catch (e) { console.warn('freq load failed', e); }
+}
+function getRank(word) {
+  if (!State.freq) return null;
+  return State.freq[word.toLowerCase()] || null;
+}
+function rankLabel(rank) {
+  if (!rank) return '';
+  if (rank <= 500) return 'top 500';
+  if (rank <= 1000) return 'top 1k';
+  if (rank <= 2000) return 'top 2k';
+  if (rank <= 5000) return 'top 5k';
+  if (rank <= 10000) return 'top 10k';
+  return '10k+';
+}
+
+// ===== Filter & sort =====
+function applyFilter(list) {
+  const { filterType, filterTags } = Settings;
+  return list.filter(w => {
+    if (filterType === 'word' && isPhrase(w.it)) return false;
+    if (filterType === 'phrase' && !isPhrase(w.it)) return false;
+    if (filterTags.length > 0) {
+      const wt = w.tags || [];
+      if (!filterTags.some(t => wt.includes(t))) return false;
+    }
+    return true;
+  });
+}
+function applySort(list) {
+  const now = Date.now();
+  const arr = [...list];
+  switch (Settings.sortBy) {
+    case 'frequency':
+      arr.sort((a, b) => {
+        const ar = a.rank != null ? a.rank : Infinity;
+        const br = b.rank != null ? b.rank : Infinity;
+        if (ar !== br) return ar - br;
+        return (b.added || 0) - (a.added || 0);
+      });
+      break;
+    case 'quizzed':
+      arr.sort((a, b) => {
+        const diff = (b.reps || 0) - (a.reps || 0);
+        if (diff !== 0) return diff;
+        return (b.added || 0) - (a.added || 0);
+      });
+      break;
+    case 'recent':
+    default:
+      arr.sort((a, b) => {
+        const aDue = (a.due || 0) <= now ? 0 : 1;
+        const bDue = (b.due || 0) <= now ? 0 : 1;
+        if (aDue !== bDue) return aDue - bDue;
+        return (b.added || 0) - (a.added || 0);
+      });
+  }
+  return arr;
+}
+
+// ===== Rendering =====
+function renderVocab() {
+  $('vocab-count').textContent = State.vocab.length
+    ? `${State.vocab.length} word${State.vocab.length === 1 ? '' : 's'}` : '';
+  const list = $('vocab-list');
+  if (State.vocab.length === 0) {
+    list.innerHTML = '<div class="empty">No words yet. Type one above and press return.</div>';
+    return;
+  }
+  const filtered = applyFilter(State.vocab);
+  const sorted = applySort(filtered);
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty">No entries match the current filter.</div>';
+    return;
+  }
+  const now = Date.now();
+  list.innerHTML = '';
+  sorted.forEach(w => {
+    const el = document.createElement('div');
+    const classes = ['word'];
+    if (isPhrase(w.it)) classes.push('phrase');
+    if (State.justAdded === w.it) classes.push('just-added');
+    el.className = classes.join(' ');
+    const due = (w.due || 0) <= now ? '<span class="due">due</span>' : '';
+    let meta = '';
+    if (Settings.sortBy === 'frequency' && w.rank) {
+      meta = `<span class="rank">${rankLabel(w.rank)} · #${w.rank}</span>`;
+    } else if (Settings.sortBy === 'quizzed') {
+      meta = `<span class="reps">${w.reps || 0}× reviewed</span>`;
+    } else if (w.rank && !isPhrase(w.it)) {
+      meta = `<span class="rank">${rankLabel(w.rank)}</span>`;
+    }
+    const check = State.selectMode
+      ? `<div class="check ${State.selected.has(w.it) ? 'sel' : ''}">${State.selected.has(w.it) ? '✓' : ''}</div>`
+      : '';
+    const enClass = w._loading ? 'en loading' : 'en';
+    const enText = w._loading ? 'looking up…' : (w.en || '');
+    const enBlock = Settings.hideTranslations ? '' : `<div class="${enClass}">${esc(enText)}</div>`;
+    const tagLine = (w.tags && w.tags.length)
+      ? `<div class="tagline">${esc(w.tags.join(' · '))}</div>` : '';
+    el.innerHTML =
+      `<div class="w"><div class="it">${esc(w.it)}</div>${enBlock}${tagLine}</div>` +
+      `${due}${meta}${check}`;
+    el.addEventListener('click', () => {
+      if (State.selectMode) {
+        if (State.selected.has(w.it)) State.selected.delete(w.it);
+        else State.selected.add(w.it);
+        renderVocab();
+      } else {
+        openLookup(w.it, w);
+      }
+    });
+    list.appendChild(el);
+  });
+  State.justAdded = null;
+}
+
+// ===== Word entry =====
+const input = $('word-input');
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); commitWord(true); }
+});
+input.addEventListener('blur', () => {
+  if (input.value.trim()) commitWord(false);
+});
+
+function commitWord(keepFocus) {
+  const raw = input.value.trim().toLowerCase();
+  input.value = '';
+  if (!raw) return;
+
+  let entry = State.vocab.find(w => w.it === raw);
+  if (!entry) {
+    entry = {
+      it: raw, en: '', added: Date.now(),
+      rank: isPhrase(raw) ? null : getRank(raw),
+      pos: '', ef: 2.5, interval: 0, reps: 0, due: Date.now(),
+      notes: '', tags: [],
+      _loading: true,
+    };
+    State.vocab.push(entry);
+    State.justAdded = raw;
+    save();
+    renderVocab();
+    enrichWord(entry);
+  } else {
+    State.justAdded = raw;
+    renderVocab();
+  }
+  if (keepFocus) input.focus();
+}
+
+async function enrichWord(w) {
+  try {
+    const [translation, wikt] = await Promise.all([
+      fetchTranslation(w.it),
+      fetchWiktionary(w.it),
+    ]);
+    if (translation) w.en = translation;
+    if (wikt && wikt.definitions[0]) w.pos = wikt.definitions[0].pos;
+    w._wikt = wikt || null;
+  } catch (e) {
+    console.warn('enrich failed', w.it, e);
+  } finally {
+    delete w._loading;
+    save();
+    renderVocab();
+  }
+}
+
+// ===== Select & Review =====
+$('select-btn').addEventListener('click', () => {
+  State.selectMode = !State.selectMode;
+  State.selected.clear();
+  $('select-btn').textContent = State.selectMode ? 'Cancel' : 'Select';
+  $('review-btn').textContent = State.selectMode ? 'Review selected' : 'Review';
+  renderVocab();
+});
+
+$('review-btn').addEventListener('click', () => {
+  if (input.value.trim()) commitWord(false);
+  let pool;
+  if (State.selectMode && State.selected.size > 0) {
+    pool = State.vocab.filter(w => State.selected.has(w.it));
+  } else {
+    const now = Date.now();
+    pool = applyFilter(State.vocab).filter(w => (w.due || 0) <= now);
+    if (pool.length === 0) {
+      alert(State.vocab.length === 0
+        ? 'Add some words first.'
+        : 'Nothing due yet. Tap Select to pick words to review.');
+      return;
+    }
+  }
+  if (pool.length === 0) return;
+  startReview(pool);
+});
+
+// ===== Sort button (cycles) =====
+function updateSortBtn() {
+  $('sort-btn').textContent = `Sort: ${SORT_LABELS[Settings.sortBy]}`;
+  $('sort-btn').classList.toggle('active', Settings.sortBy !== 'recent');
+}
+$('sort-btn').addEventListener('click', () => {
+  const i = SORT_ORDER.indexOf(Settings.sortBy);
+  Settings.sortBy = SORT_ORDER[(i + 1) % SORT_ORDER.length];
+  saveSettings();
+  updateSortBtn();
+  renderVocab();
+});
+
+// ===== Filter =====
+function updateFilterBtn() {
+  let count = 0;
+  if (Settings.filterType && Settings.filterType !== 'all') count++;
+  count += (Settings.filterTags || []).length;
+  $('filter-btn').textContent = count ? `Filter · ${count}` : 'Filter';
+  $('filter-btn').classList.toggle('active', count > 0);
+}
+
+function openFilter() {
+  ['all','word','phrase'].forEach(v => {
+    const el = document.querySelector(`input[name="filter-type"][value="${v}"]`);
+    if (el) el.checked = Settings.filterType === v;
+  });
+  const container = $('filter-tags');
+  const tags = allTags();
+  if (tags.length === 0) {
+    container.innerHTML = '<div class="empty" style="padding:12px; font-size:12px;">No themes yet. Add themes to words in the inspector.</div>';
+  } else {
+    const selected = new Set(Settings.filterTags || []);
+    container.innerHTML = tags.map(t =>
+      `<label class="setting-row"><input type="checkbox" class="filter-tag-cb" value="${esc(t)}" ${selected.has(t) ? 'checked' : ''}><span class="label">${esc(t)}</span></label>`
+    ).join('');
+  }
+  $('filter-modal').classList.remove('hidden');
+}
+function closeFilter() { $('filter-modal').classList.add('hidden'); }
+
+$('filter-btn').addEventListener('click', openFilter);
+$('filter-close').addEventListener('click', closeFilter);
+$('filter-done').addEventListener('click', closeFilter);
+$('filter-clear').addEventListener('click', () => {
+  Settings.filterType = 'all';
+  Settings.filterTags = [];
+  saveSettings();
+  updateFilterBtn();
+  openFilter();
+  renderVocab();
+});
+$('filter-modal').addEventListener('change', e => {
+  if (e.target.matches('input[name="filter-type"]')) {
+    Settings.filterType = e.target.value;
+  } else if (e.target.matches('.filter-tag-cb')) {
+    Settings.filterTags = [...$('filter-modal').querySelectorAll('.filter-tag-cb:checked')]
+      .map(c => c.value);
+  }
+  saveSettings();
+  updateFilterBtn();
+  renderVocab();
+});
+
+// ===== Lookup =====
+async function openLookup(word, existing) {
+  word = word.toLowerCase();
+  if (!existing) existing = State.vocab.find(w => w.it === word) || null;
+
+  State.lookup = { word, existing };
+  $('lookup-word').textContent = word;
+  const rank = (existing && existing.rank) || getRank(word);
+  const rankText = isPhrase(word)
+    ? 'phrase'
+    : (rank ? `frequency rank #${rank} (${rankLabel(rank)})`
+            : (State.freq ? 'not in top 10k most common' : 'frequency list loading…'));
+  $('lookup-rank').textContent = rankText;
+  $('lookup-body').innerHTML = '<div class="empty">Looking up…</div>';
+  $('lookup-modal').classList.remove('hidden');
+
+  $('lookup-delete').classList.toggle('hidden', !existing);
+  $('lookup-add').classList.toggle('hidden', !!existing);
+  $('lookup-close-2').textContent = existing ? 'Done' : 'Close';
+
+  let wikt = existing?._wikt;
+  let translation = existing?.en;
+
+  const needs = [];
+  if (!translation) needs.push(fetchTranslation(word).then(t => {
+    translation = t;
+    if (existing && t) existing.en = t;
+  }));
+  if (!wikt) needs.push(fetchWiktionary(word).then(w => {
+    wikt = w;
+    if (existing) {
+      existing._wikt = w;
+      if (w?.definitions[0]) existing.pos = w.definitions[0].pos;
+    }
+  }));
+  if (needs.length) await Promise.all(needs);
+  if (!State.lookup || State.lookup.word !== word) return;
+
+  let html = '';
+  html += `<div class="lookup-section"><h4>Translation</h4>` +
+          `<div class="content">${esc(translation || '—')}</div></div>`;
+
+  if (isPhrase(word)) {
+    const tokens = tokenize(word);
+    if (tokens.length) {
+      const inVocab = new Set(State.vocab.map(v => v.it));
+      html += `<div class="lookup-section"><h4>Words in this phrase</h4>` +
+        `<div class="content word-chips">` +
+        tokens.map(tok =>
+          `<span class="chip ${inVocab.has(tok) ? 'known' : ''}" data-word="${esc(tok)}">${esc(tok)}</span>`
+        ).join('') +
+        `</div></div>`;
+    }
+  } else {
+    const related = phrasesContaining(word);
+    if (related.length) {
+      html += `<div class="lookup-section"><h4>Used in your phrases</h4><div>` +
+        related.map(p =>
+          `<div class="phrase-link" data-phrase="${esc(p.it)}">` +
+            `<div>${esc(p.it)}</div>` +
+            (p.en ? `<div class="en">${esc(p.en)}</div>` : '') +
+          `</div>`
+        ).join('') +
+        `</div></div>`;
+    }
+  }
+
+  if (wikt && wikt.definitions.length) {
+    html += `<div class="lookup-section"><h4>Definitions</h4><div class="content">`;
+    wikt.definitions.forEach(d => {
+      html += `<div class="def"><em>${esc(d.pos)}</em> — ${d.text}</div>`;
+    });
+    html += `</div></div>`;
+  }
+  if (wikt && wikt.isVerb) {
+    html += `<div class="lookup-section"><h4>Conjugations</h4><div class="content">` +
+      `<a href="https://conjugator.reverso.net/conjugation-italian-verb-${encodeURIComponent(word)}.html" target="_blank" rel="noopener">Open conjugation table on Reverso →</a>` +
+      `</div></div>`;
+  }
+
+  // Notes + Themes only make sense for saved entries
+  if (existing) {
+    html += `<div class="lookup-section"><h4>Notes</h4>` +
+      `<textarea class="notes-area" id="notes-area" placeholder="Your own notes…">${esc(existing.notes || '')}</textarea>` +
+      `</div>`;
+    html += `<div class="lookup-section"><h4>Themes</h4><div class="content">` +
+      `<div class="tag-chips" id="tag-chips"></div>` +
+      `<input type="text" class="tag-input" id="tag-input" placeholder="Add a theme, press Enter" ` +
+      `autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="done">` +
+      `</div></div>`;
+
+    const srsLine = existing.interval
+      ? `Reviewed ${existing.reps}× · next in ${existing.interval} day${existing.interval === 1 ? '' : 's'} · ease ${existing.ef.toFixed(2)}`
+      : 'Not yet reviewed';
+    html += `<div class="lookup-section"><h4>Review state</h4>` +
+            `<div class="content" style="font-size:12px; color: var(--muted);">${esc(srsLine)}</div></div>`;
+  }
+
+  $('lookup-body').innerHTML = html;
+
+  // Phrase chip clicks
+  $('lookup-body').querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => openLookup(chip.dataset.word, null));
+  });
+  $('lookup-body').querySelectorAll('.phrase-link').forEach(pl => {
+    pl.addEventListener('click', () => {
+      const ph = pl.dataset.phrase;
+      const p = State.vocab.find(v => v.it === ph);
+      openLookup(ph, p || null);
+    });
+  });
+
+  if (existing) {
+    wireNotes(existing);
+    wireTags(existing);
+  }
+
+  save();
+  renderVocab();
+}
+
+function wireNotes(entry) {
+  const area = $('notes-area');
+  if (!area) return;
+  let notesTimer;
+  const commit = () => {
+    entry.notes = area.value;
+    save();
+  };
+  area.addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(commit, 300);
+  });
+  area.addEventListener('blur', () => {
+    clearTimeout(notesTimer);
+    commit();
+  });
+}
+
+function wireTags(entry) {
+  const chipsEl = $('tag-chips');
+  const inputEl = $('tag-input');
+  if (!chipsEl || !inputEl) return;
+  entry.tags = entry.tags || [];
+
+  const renderChips = () => {
+    chipsEl.innerHTML = entry.tags.map((t, i) =>
+      `<span class="tag-chip">${esc(t)}<button data-i="${i}" aria-label="Remove">×</button></span>`
+    ).join('');
+    chipsEl.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => {
+        const i = parseInt(b.dataset.i, 10);
+        entry.tags.splice(i, 1);
+        save();
+        renderChips();
+        updateFilterBtn();
+        renderVocab();
+      });
+    });
+  };
+  renderChips();
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const raw = inputEl.value.trim().toLowerCase();
+      if (!raw) return;
+      if (!entry.tags.includes(raw)) entry.tags.push(raw);
+      inputEl.value = '';
+      save();
+      renderChips();
+      updateFilterBtn();
+      renderVocab();
+      inputEl.focus();
+    }
+  });
+  inputEl.addEventListener('blur', () => {
+    const raw = inputEl.value.trim().toLowerCase();
+    if (!raw) return;
+    if (!entry.tags.includes(raw)) entry.tags.push(raw);
+    inputEl.value = '';
+    save();
+    renderChips();
+    updateFilterBtn();
+    renderVocab();
+  });
+}
+
+function closeLookup() {
+  $('lookup-modal').classList.add('hidden');
+  State.lookup = null;
+}
+$('lookup-close').addEventListener('click', closeLookup);
+$('lookup-close-2').addEventListener('click', closeLookup);
+
+// Double-click title to rename
+$('lookup-word').addEventListener('dblclick', startEditTitle);
+
+function startEditTitle() {
+  const L = State.lookup;
+  if (!L || !L.existing) return;
+  const titleEl = $('lookup-word');
+  const original = L.word;
+
+  titleEl.innerHTML =
+    `<input type="text" id="edit-title-input" value="${esc(original)}"` +
+    ` autocapitalize="none" autocorrect="off" spellcheck="false"` +
+    ` enterkeyhint="done" inputmode="text">`;
+  const inp = $('edit-title-input');
+  inp.focus();
+  try { inp.setSelectionRange(0, inp.value.length); } catch {}
+
+  let done = false;
+  const revert = () => {
+    if (done) return;
+    done = true;
+    titleEl.textContent = original;
+  };
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const next = inp.value.trim().toLowerCase();
+    if (!next || next === original) { titleEl.textContent = original; return; }
+    applyRename(original, next);
+  };
+
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); revert(); }
+  });
+  inp.addEventListener('blur', commit);
+}
+
+function applyRename(oldVal, newVal) {
+  const entry = State.vocab.find(w => w.it === oldVal);
+  if (!entry) { closeLookup(); return; }
+
+  const collision = State.vocab.find(w => w.it === newVal && w !== entry);
+  if (collision) {
+    if (!confirm(`"${newVal}" already exists. Replace it with this renamed entry?`)) {
+      $('lookup-word').textContent = oldVal;
+      return;
+    }
+    State.vocab = State.vocab.filter(w => w !== collision);
+  }
+
+  entry.it = newVal;
+  entry.en = '';
+  entry.pos = '';
+  delete entry._wikt;
+  entry.rank = isPhrase(newVal) ? null : getRank(newVal);
+  entry._loading = true;
+  save();
+  enrichWord(entry);
+  State.justAdded = newVal;
+  openLookup(newVal, entry);
+}
+
+$('lookup-delete').addEventListener('click', () => {
+  const L = State.lookup;
+  if (!L || !L.existing) return;
+  if (!confirm(`Delete "${L.word}"?`)) return;
+  State.vocab = State.vocab.filter(w => w.it !== L.word);
+  save();
+  updateFilterBtn();
+  renderVocab();
+  closeLookup();
+});
+
+$('lookup-add').addEventListener('click', () => {
+  const L = State.lookup;
+  if (!L) return;
+  const entry = {
+    it: L.word,
+    en: (L.existing?.en) || '',
+    added: Date.now(),
+    rank: isPhrase(L.word) ? null : getRank(L.word),
+    pos: L.existing?.pos || '',
+    ef: 2.5, interval: 0, reps: 0, due: Date.now(),
+    notes: '', tags: [],
+  };
+  if (L.existing?._wikt) entry._wikt = L.existing._wikt;
+  if (!entry.en) entry._loading = true;
+  State.vocab.push(entry);
+  save();
+  State.justAdded = L.word;
+  if (entry._loading) enrichWord(entry);
+  renderVocab();
+  openLookup(L.word, entry);
+});
+
+async function fetchTranslation(word) {
+  try {
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=it|en`);
+    const j = await r.json();
+    return (j.responseData?.translatedText || '').trim();
+  } catch { return ''; }
+}
+
+async function fetchWiktionary(word) {
+  try {
+    const r = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const it = j.it || [];
+    const definitions = [];
+    let isVerb = false;
+    it.forEach(section => {
+      if (/verb/i.test(section.partOfSpeech)) isVerb = true;
+      (section.definitions || []).forEach(d => {
+        definitions.push({ pos: section.partOfSpeech, text: d.definition });
+      });
+    });
+    return { definitions: definitions.slice(0, 6), isVerb };
+  } catch { return null; }
+}
+
+// ===== Settings =====
+function applyScale() {
+  document.documentElement.style.setProperty('--scale', Settings.scale);
+}
+function openSettings() {
+  $('setting-hide-tr').checked = !!Settings.hideTranslations;
+  $('setting-scale').value = Settings.scale;
+  $('scale-value').textContent = Math.round(Settings.scale * 100) + '%';
+  $('settings-modal').classList.remove('hidden');
+}
+function closeSettings() { $('settings-modal').classList.add('hidden'); }
+$('settings-btn').addEventListener('click', openSettings);
+$('settings-close').addEventListener('click', closeSettings);
+$('setting-hide-tr').addEventListener('change', e => {
+  Settings.hideTranslations = e.target.checked;
+  saveSettings();
+  renderVocab();
+});
+$('setting-scale').addEventListener('input', e => {
+  Settings.scale = parseFloat(e.target.value) || 1;
+  $('scale-value').textContent = Math.round(Settings.scale * 100) + '%';
+  applyScale();
+  saveSettings();
+});
+
+// ===== Backdrop click to dismiss =====
+['lookup-modal', 'settings-modal', 'filter-modal'].forEach(id => {
+  $(id).addEventListener('click', e => {
+    if (e.target !== $(id)) return;
+    if (id === 'lookup-modal') closeLookup();
+    else if (id === 'settings-modal') closeSettings();
+    else if (id === 'filter-modal') closeFilter();
+  });
+});
+
+// ===== Review (SM-2) =====
+function startReview(pool) {
+  State.review = { queue: shuffle(pool.slice()), idx: 0, flipped: false };
+  $('review-modal').classList.remove('hidden');
+  nextCard();
+}
+function closeReview() {
+  $('review-modal').classList.add('hidden');
+  State.review = null;
+  save();
+  renderVocab();
+}
+$('review-close').addEventListener('click', closeReview);
+
+function nextCard() {
+  const R = State.review;
+  if (!R) return;
+  if (R.idx >= R.queue.length) {
+    $('review-progress').textContent = `${R.queue.length} / ${R.queue.length}`;
+    $('review-card').innerHTML =
+      '<div class="review-done"><div style="font-size: 40px">✓</div><div>Session complete</div></div>';
+    $('review-card').onclick = null;
+    $('review-rating').innerHTML = '';
+    const done = document.createElement('button');
+    done.className = 'btn-primary';
+    done.style.gridColumn = '1 / -1';
+    done.textContent = 'Finish';
+    done.onclick = closeReview;
+    $('review-rating').appendChild(done);
+    return;
+  }
+  const w = R.queue[R.idx];
+  R.flipped = false;
+  const card = $('review-card');
+  card.innerHTML = `<div><div class="face">${esc(w.it)}</div><div class="hint">tap to reveal</div></div>`;
+  card.onclick = () => {
+    R.flipped = true;
+    card.innerHTML = `<div><div class="face">${esc(w.it)}</div>` +
+                     `<div class="back">${esc(w.en || '(no translation saved)')}</div></div>`;
+    showRating();
+  };
+  $('review-progress').textContent = `${R.idx + 1} / ${R.queue.length}`;
+  $('review-rating').innerHTML = '';
+}
+
+function showRating() {
+  const options = [
+    { q: 0, label: 'Again', style: 'background: var(--danger); color: #fff;' },
+    { q: 3, label: 'Hard' },
+    { q: 4, label: 'Good' },
+    { q: 5, label: 'Easy', style: 'background: var(--accent); color: #000;' },
+  ];
+  const row = $('review-rating');
+  row.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.textContent = opt.label;
+    if (opt.style) b.setAttribute('style', opt.style);
+    b.onclick = () => rate(opt.q);
+    row.appendChild(b);
+  });
+}
+
+function rate(q) {
+  const R = State.review;
+  if (!R) return;
+  const w = R.queue[R.idx];
+  const live = State.vocab.find(x => x.it === w.it);
+  if (live) applySM2(live, q);
+  save();
+  R.idx++;
+  nextCard();
+}
+
+function applySM2(w, q) {
+  w.ef = w.ef || 2.5;
+  w.reps = w.reps || 0;
+  w.interval = w.interval || 0;
+  if (q >= 3) {
+    if (w.reps === 0) w.interval = 1;
+    else if (w.reps === 1) w.interval = 6;
+    else w.interval = Math.round(w.interval * w.ef);
+    w.reps += 1;
+  } else {
+    w.reps = 0;
+    w.interval = 1;
+  }
+  w.ef = Math.max(1.3, w.ef + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+  w.due = Date.now() + w.interval * 86400000;
+}
+
+// ===== Boot =====
+load();
+applyScale();
+updateSortBtn();
+updateFilterBtn();
+// Normalise legacy entries that predate notes/tags
+State.vocab.forEach(w => {
+  if (w.notes == null) w.notes = '';
+  if (!Array.isArray(w.tags)) w.tags = [];
+});
+renderVocab();
+loadFreq().then(() => {
+  let changed = false;
+  State.vocab.forEach(w => {
+    if (!w.rank && !isPhrase(w.it)) {
+      const r = getRank(w.it);
+      if (r) { w.rank = r; changed = true; }
+    }
+  });
+  if (changed) save();
+  renderVocab();
+});
+setTimeout(() => input.focus(), 50);
+
+})();
+</script>
+</body>
+</html>
