@@ -32,12 +32,13 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 button, input, textarea { font: inherit; color: inherit; }
 button { background: var(--surface-2); border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
 button:active { opacity: 0.6; }
+button:disabled { opacity: 0.4; cursor: default; }
 .btn-primary { background: var(--accent); color: #000; font-weight: 600; }
 .btn-danger { background: var(--danger); color: #fff; }
 .icon-btn { background: transparent; padding: 2px 6px; font-size: 18px; line-height: 1; }
-input[type=text] { background: var(--surface); border: 1px solid var(--surface-2);
+input[type=text], input[type=email] { background: var(--surface); border: 1px solid var(--surface-2);
   border-radius: 10px; padding: 10px 12px; width: 100%; font-size: 16px; outline: none; }
-input[type=text]:focus { border-color: var(--accent); }
+input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
 .hidden { display: none !important; }
 
 #app { display: flex; flex-direction: column; height: 100%;
@@ -50,8 +51,15 @@ input[type=text]:focus { border-color: var(--accent); }
 #vocab-header .title { font-size: 13px; color: var(--muted); text-transform: uppercase;
   letter-spacing: 0.5px; margin-bottom: 8px; display: flex; justify-content: space-between;
   align-items: center; }
-#vocab-header .header-right { display: flex; align-items: center; gap: 10px; }
+#vocab-header .header-right { display: flex; align-items: center; gap: 8px; }
 #vocab-header .count { color: var(--muted); font-weight: 400; }
+
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.sync-dot.ok { background: var(--accent); }
+.sync-dot.syncing { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
+.sync-dot.error { background: var(--danger); }
+.sync-dot.off { display: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 #vocab-toolbar { display: flex; gap: 6px; padding: 6px 8px; background: var(--bg);
   border-bottom: 1px solid var(--surface-2); flex-shrink: 0; align-items: center;
@@ -77,7 +85,6 @@ input[type=text]:focus { border-color: var(--accent); }
 .word .w .en { font-size: calc(12px * var(--scale)); color: var(--muted); margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .word .w .en.loading { opacity: 0.5; font-style: italic; }
-.word .w .meta { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
 .word .w .tagline { font-size: 10px; color: var(--muted); }
 .word .rank { font-size: 10px; background: var(--surface-2); padding: 3px 7px;
   border-radius: 999px; color: var(--muted); white-space: nowrap; }
@@ -125,19 +132,17 @@ input[type=text]:focus { border-color: var(--accent); }
   border-radius: 8px; padding: 4px 8px; font-size: 22px; font-weight: 600;
   color: var(--text); width: 100%; outline: none; font-family: inherit; }
 
-/* Word chips (phrase breakdown) */
+/* Phrase breakdown / reverse lookup */
 .word-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { background: var(--surface-2); padding: 6px 10px; border-radius: 999px;
   font-size: 13px; cursor: pointer; color: var(--text); border: 1px solid transparent; }
 .chip.known { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
-
-/* Phrase list (reverse lookup) */
 .phrase-link { padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--phrase);
   background: var(--phrase-bg); margin-bottom: 6px; font-size: 13px; }
 .phrase-link:last-child { margin-bottom: 0; }
 .phrase-link .en { color: var(--muted); font-size: 11px; margin-top: 2px; }
 
-/* Notes textarea */
+/* Notes */
 .notes-area { width: 100%; min-height: 80px; max-height: 240px; background: var(--surface);
   border: 1px solid var(--surface-2); border-radius: 10px; padding: 10px 12px;
   color: var(--text); resize: vertical; font: inherit; line-height: 1.5; outline: none;
@@ -157,14 +162,19 @@ input[type=text]:focus { border-color: var(--accent); }
 .setting-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
   background: var(--surface); border-radius: 10px; cursor: pointer;
   margin-bottom: 8px; user-select: none; }
+.setting-row.stack { flex-direction: column; align-items: stretch; gap: 8px; cursor: default; }
 .setting-row input[type=checkbox], .setting-row input[type=radio] {
   width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; }
 .setting-row input[type=range] { flex-shrink: 0; accent-color: var(--accent); }
 .setting-row .label { flex: 1; }
 .setting-row .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.setting-row .row-buttons { display: flex; gap: 8px; }
+.setting-row .row-buttons button { flex: 1; }
 .section-heading { color: var(--muted); font-size: 11px; text-transform: uppercase;
   letter-spacing: 0.5px; margin: 18px 0 8px; }
 .section-heading:first-child { margin-top: 0; }
+
+#sync-code { font-size: 18px; letter-spacing: 4px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Review modal */
 #review-modal .modal-content { height: 100%; max-height: 100%; }
@@ -191,6 +201,7 @@ input[type=text]:focus { border-color: var(--accent); }
         <span>Tipo di</span>
         <span class="header-right">
           <span class="count" id="vocab-count"></span>
+          <span class="sync-dot off" id="sync-dot" title=""></span>
           <button id="settings-btn" class="icon-btn" aria-label="Settings">⚙</button>
         </span>
       </div>
@@ -235,6 +246,54 @@ input[type=text]:focus { border-color: var(--accent); }
       <button class="close" id="settings-close">✕</button>
     </div>
     <div class="modal-body">
+      <div class="section-heading">Sync</div>
+
+      <div id="sync-unavailable" class="setting-row hidden">
+        <span class="label">Sync unavailable
+          <div class="sub">Supabase client didn't load. Check your connection and reload.</div>
+        </span>
+      </div>
+
+      <div id="sync-out" class="hidden">
+        <div class="setting-row stack">
+          <div class="label">Sign in to sync across devices
+            <div class="sub">We'll email you a 6-digit code.</div>
+          </div>
+          <input type="email" id="sync-email" placeholder="your@email.com"
+                 autocapitalize="none" autocorrect="off" spellcheck="false"
+                 inputmode="email" enterkeyhint="send">
+          <button id="sync-send-code" class="btn-primary">Send code</button>
+        </div>
+      </div>
+
+      <div id="sync-verify" class="hidden">
+        <div class="setting-row stack">
+          <div class="label">Check <strong><span id="sync-email-shown"></span></strong> for a 6-digit code.
+            <div class="sub">Enter it here — don't tap the magic link in the email, it opens Safari instead of this app.</div>
+          </div>
+          <input type="text" id="sync-code" placeholder="000000"
+                 inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                 autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="done">
+          <div class="row-buttons">
+            <button id="sync-cancel-btn">Cancel</button>
+            <button id="sync-verify-btn" class="btn-primary">Verify</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="sync-in" class="hidden">
+        <div class="setting-row stack">
+          <div class="label">Signed in as <strong><span id="sync-email-signed"></span></strong>
+            <div class="sub" id="sync-status">—</div>
+          </div>
+          <div class="row-buttons">
+            <button id="sync-push-btn">Sync now</button>
+            <button id="sync-signout-btn" class="btn-danger">Sign out</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">Preferences</div>
       <label class="setting-row">
         <input type="checkbox" id="setting-hide-tr">
         <span class="label">Hide translations in overview
@@ -293,6 +352,10 @@ const LS_KEY = 'tipodi.v1';
 const FREQ_KEY = 'tipodi.freq.v1';
 const SETTINGS_KEY = 'tipodi.settings.v1';
 
+// Supabase project config (public — anon/publishable keys are safe to expose)
+const SUPABASE_URL = 'https://cuptrfpnsjdzkzzfkzrl.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BPfphEOOksLILxoa6yeLsg_ylPi9_Lr';
+
 const State = {
   vocab: [],
   freq: null,
@@ -306,9 +369,21 @@ const State = {
 const Settings = {
   hideTranslations: false,
   scale: 1,
-  sortBy: 'recent',         // 'recent' | 'frequency' | 'quizzed'
-  filterType: 'all',        // 'all' | 'word' | 'phrase'
-  filterTags: [],           // string[]
+  sortBy: 'recent',
+  filterType: 'all',
+  filterTags: [],
+};
+
+const Sync = {
+  client: null,
+  available: false,
+  session: null,
+  pendingEmail: null,
+  status: 'idle',      // 'idle' | 'syncing' | 'error' | 'signing_in'
+  lastSyncedAt: null,
+  lastError: null,
+  pushTimer: null,
+  suppressPush: false, // true while applying incoming remote state
 };
 
 const SORT_LABELS = { recent: 'Recent', frequency: 'Frequent', quizzed: 'Quizzed' };
@@ -322,8 +397,18 @@ function load() {
   if (!SORT_LABELS[Settings.sortBy]) Settings.sortBy = 'recent';
   if (!['all','word','phrase'].includes(Settings.filterType)) Settings.filterType = 'all';
   if (!Array.isArray(Settings.filterTags)) Settings.filterTags = [];
+  // Schema migration: ensure each entry has notes/tags/updated/deleted
+  State.vocab.forEach(w => {
+    if (w.notes == null) w.notes = '';
+    if (!Array.isArray(w.tags)) w.tags = [];
+    if (w.updated == null) w.updated = w.added || Date.now();
+    if (w.deleted == null) w.deleted = false;
+  });
 }
-function save() { localStorage.setItem(LS_KEY, JSON.stringify(State.vocab)); }
+function save() {
+  localStorage.setItem(LS_KEY, JSON.stringify(State.vocab));
+  if (!Sync.suppressPush) schedulePush();
+}
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(Settings)); }
 
 // ===== Util =====
@@ -345,14 +430,24 @@ function tokenize(phrase) {
     .map(w => w.toLowerCase().replace(/[^\p{L}'-]/gu, ''))
     .filter(w => w.length > 0);
 }
+function touch(entry) { entry.updated = Date.now(); }
+function activeVocab() { return State.vocab.filter(w => !w.deleted); }
 function phrasesContaining(word) {
   const w = word.toLowerCase();
-  return State.vocab.filter(v => isPhrase(v.it) && tokenize(v.it).includes(w));
+  return activeVocab().filter(v => isPhrase(v.it) && tokenize(v.it).includes(w));
 }
 function allTags() {
   const s = new Set();
-  State.vocab.forEach(w => (w.tags || []).forEach(t => s.add(t)));
+  activeVocab().forEach(w => (w.tags || []).forEach(t => s.add(t)));
   return [...s].sort();
+}
+function relativeTime(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
 }
 
 // ===== Frequency list =====
@@ -373,10 +468,7 @@ async function loadFreq() {
     try { localStorage.setItem(FREQ_KEY, JSON.stringify(map)); } catch {}
   } catch (e) { console.warn('freq load failed', e); }
 }
-function getRank(word) {
-  if (!State.freq) return null;
-  return State.freq[word.toLowerCase()] || null;
-}
+function getRank(word) { return State.freq ? State.freq[word.toLowerCase()] || null : null; }
 function rankLabel(rank) {
   if (!rank) return '';
   if (rank <= 500) return 'top 500';
@@ -391,6 +483,7 @@ function rankLabel(rank) {
 function applyFilter(list) {
   const { filterType, filterTags } = Settings;
   return list.filter(w => {
+    if (w.deleted) return false;
     if (filterType === 'word' && isPhrase(w.it)) return false;
     if (filterType === 'phrase' && !isPhrase(w.it)) return false;
     if (filterTags.length > 0) {
@@ -433,10 +526,10 @@ function applySort(list) {
 
 // ===== Rendering =====
 function renderVocab() {
-  $('vocab-count').textContent = State.vocab.length
-    ? `${State.vocab.length} word${State.vocab.length === 1 ? '' : 's'}` : '';
+  const count = activeVocab().length;
+  $('vocab-count').textContent = count ? `${count} word${count === 1 ? '' : 's'}` : '';
   const list = $('vocab-list');
-  if (State.vocab.length === 0) {
+  if (count === 0) {
     list.innerHTML = '<div class="empty">No words yet. Type one above and press return.</div>';
     return;
   }
@@ -504,12 +597,25 @@ function commitWord(keepFocus) {
   if (!raw) return;
 
   let entry = State.vocab.find(w => w.it === raw);
-  if (!entry) {
+  if (entry && entry.deleted) {
+    entry.deleted = false;
+    entry.added = Date.now();
+    entry.ef = 2.5; entry.interval = 0; entry.reps = 0; entry.due = Date.now();
+    entry._loading = true;
+    touch(entry);
+    State.justAdded = raw;
+    save();
+    renderVocab();
+    enrichWord(entry);
+  } else if (entry) {
+    State.justAdded = raw;
+    renderVocab();
+  } else {
     entry = {
-      it: raw, en: '', added: Date.now(),
+      it: raw, en: '', added: Date.now(), updated: Date.now(),
       rank: isPhrase(raw) ? null : getRank(raw),
       pos: '', ef: 2.5, interval: 0, reps: 0, due: Date.now(),
-      notes: '', tags: [],
+      notes: '', tags: [], deleted: false,
       _loading: true,
     };
     State.vocab.push(entry);
@@ -517,9 +623,6 @@ function commitWord(keepFocus) {
     save();
     renderVocab();
     enrichWord(entry);
-  } else {
-    State.justAdded = raw;
-    renderVocab();
   }
   if (keepFocus) input.focus();
 }
@@ -533,6 +636,7 @@ async function enrichWord(w) {
     if (translation) w.en = translation;
     if (wikt && wikt.definitions[0]) w.pos = wikt.definitions[0].pos;
     w._wikt = wikt || null;
+    touch(w);
   } catch (e) {
     console.warn('enrich failed', w.it, e);
   } finally {
@@ -555,12 +659,12 @@ $('review-btn').addEventListener('click', () => {
   if (input.value.trim()) commitWord(false);
   let pool;
   if (State.selectMode && State.selected.size > 0) {
-    pool = State.vocab.filter(w => State.selected.has(w.it));
+    pool = activeVocab().filter(w => State.selected.has(w.it));
   } else {
     const now = Date.now();
     pool = applyFilter(State.vocab).filter(w => (w.due || 0) <= now);
     if (pool.length === 0) {
-      alert(State.vocab.length === 0
+      alert(activeVocab().length === 0
         ? 'Add some words first.'
         : 'Nothing due yet. Tap Select to pick words to review.');
       return;
@@ -570,7 +674,7 @@ $('review-btn').addEventListener('click', () => {
   startReview(pool);
 });
 
-// ===== Sort button (cycles) =====
+// ===== Sort button =====
 function updateSortBtn() {
   $('sort-btn').textContent = `Sort: ${SORT_LABELS[Settings.sortBy]}`;
   $('sort-btn').classList.toggle('active', Settings.sortBy !== 'recent');
@@ -591,7 +695,6 @@ function updateFilterBtn() {
   $('filter-btn').textContent = count ? `Filter · ${count}` : 'Filter';
   $('filter-btn').classList.toggle('active', count > 0);
 }
-
 function openFilter() {
   ['all','word','phrase'].forEach(v => {
     const el = document.querySelector(`input[name="filter-type"][value="${v}"]`);
@@ -637,7 +740,7 @@ $('filter-modal').addEventListener('change', e => {
 // ===== Lookup =====
 async function openLookup(word, existing) {
   word = word.toLowerCase();
-  if (!existing) existing = State.vocab.find(w => w.it === word) || null;
+  if (!existing) existing = State.vocab.find(w => w.it === word && !w.deleted) || null;
 
   State.lookup = { word, existing };
   $('lookup-word').textContent = word;
@@ -660,13 +763,14 @@ async function openLookup(word, existing) {
   const needs = [];
   if (!translation) needs.push(fetchTranslation(word).then(t => {
     translation = t;
-    if (existing && t) existing.en = t;
+    if (existing && t) { existing.en = t; touch(existing); }
   }));
   if (!wikt) needs.push(fetchWiktionary(word).then(w => {
     wikt = w;
     if (existing) {
       existing._wikt = w;
       if (w?.definitions[0]) existing.pos = w.definitions[0].pos;
+      touch(existing);
     }
   }));
   if (needs.length) await Promise.all(needs);
@@ -679,7 +783,7 @@ async function openLookup(word, existing) {
   if (isPhrase(word)) {
     const tokens = tokenize(word);
     if (tokens.length) {
-      const inVocab = new Set(State.vocab.map(v => v.it));
+      const inVocab = new Set(activeVocab().map(v => v.it));
       html += `<div class="lookup-section"><h4>Words in this phrase</h4>` +
         `<div class="content word-chips">` +
         tokens.map(tok =>
@@ -714,7 +818,6 @@ async function openLookup(word, existing) {
       `</div></div>`;
   }
 
-  // Notes + Themes only make sense for saved entries
   if (existing) {
     html += `<div class="lookup-section"><h4>Notes</h4>` +
       `<textarea class="notes-area" id="notes-area" placeholder="Your own notes…">${esc(existing.notes || '')}</textarea>` +
@@ -734,14 +837,13 @@ async function openLookup(word, existing) {
 
   $('lookup-body').innerHTML = html;
 
-  // Phrase chip clicks
   $('lookup-body').querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', () => openLookup(chip.dataset.word, null));
   });
   $('lookup-body').querySelectorAll('.phrase-link').forEach(pl => {
     pl.addEventListener('click', () => {
       const ph = pl.dataset.phrase;
-      const p = State.vocab.find(v => v.it === ph);
+      const p = State.vocab.find(v => v.it === ph && !v.deleted);
       openLookup(ph, p || null);
     });
   });
@@ -760,8 +862,11 @@ function wireNotes(entry) {
   if (!area) return;
   let notesTimer;
   const commit = () => {
-    entry.notes = area.value;
-    save();
+    if (entry.notes !== area.value) {
+      entry.notes = area.value;
+      touch(entry);
+      save();
+    }
   };
   area.addEventListener('input', () => {
     clearTimeout(notesTimer);
@@ -778,7 +883,6 @@ function wireTags(entry) {
   const inputEl = $('tag-input');
   if (!chipsEl || !inputEl) return;
   entry.tags = entry.tags || [];
-
   const renderChips = () => {
     chipsEl.innerHTML = entry.tags.map((t, i) =>
       `<span class="tag-chip">${esc(t)}<button data-i="${i}" aria-label="Remove">×</button></span>`
@@ -787,6 +891,7 @@ function wireTags(entry) {
       b.addEventListener('click', () => {
         const i = parseInt(b.dataset.i, 10);
         entry.tags.splice(i, 1);
+        touch(entry);
         save();
         renderChips();
         updateFilterBtn();
@@ -796,30 +901,23 @@ function wireTags(entry) {
   };
   renderChips();
 
-  inputEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const raw = inputEl.value.trim().toLowerCase();
-      if (!raw) return;
-      if (!entry.tags.includes(raw)) entry.tags.push(raw);
-      inputEl.value = '';
+  const addTag = () => {
+    const raw = inputEl.value.trim().toLowerCase();
+    if (!raw) return;
+    if (!entry.tags.includes(raw)) {
+      entry.tags.push(raw);
+      touch(entry);
       save();
       renderChips();
       updateFilterBtn();
       renderVocab();
-      inputEl.focus();
     }
-  });
-  inputEl.addEventListener('blur', () => {
-    const raw = inputEl.value.trim().toLowerCase();
-    if (!raw) return;
-    if (!entry.tags.includes(raw)) entry.tags.push(raw);
     inputEl.value = '';
-    save();
-    renderChips();
-    updateFilterBtn();
-    renderVocab();
+  };
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addTag(); inputEl.focus(); }
   });
+  inputEl.addEventListener('blur', addTag);
 }
 
 function closeLookup() {
@@ -831,7 +929,6 @@ $('lookup-close-2').addEventListener('click', closeLookup);
 
 // Double-click title to rename
 $('lookup-word').addEventListener('dblclick', startEditTitle);
-
 function startEditTitle() {
   const L = State.lookup;
   if (!L || !L.existing) return;
@@ -859,7 +956,6 @@ function startEditTitle() {
     if (!next || next === original) { titleEl.textContent = original; return; }
     applyRename(original, next);
   };
-
   inp.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     else if (e.key === 'Escape') { e.preventDefault(); revert(); }
@@ -868,24 +964,24 @@ function startEditTitle() {
 }
 
 function applyRename(oldVal, newVal) {
-  const entry = State.vocab.find(w => w.it === oldVal);
+  const entry = State.vocab.find(w => w.it === oldVal && !w.deleted);
   if (!entry) { closeLookup(); return; }
-
-  const collision = State.vocab.find(w => w.it === newVal && w !== entry);
+  const collision = State.vocab.find(w => w.it === newVal && w !== entry && !w.deleted);
   if (collision) {
     if (!confirm(`"${newVal}" already exists. Replace it with this renamed entry?`)) {
       $('lookup-word').textContent = oldVal;
       return;
     }
-    State.vocab = State.vocab.filter(w => w !== collision);
+    collision.deleted = true;
+    touch(collision);
   }
-
   entry.it = newVal;
   entry.en = '';
   entry.pos = '';
   delete entry._wikt;
   entry.rank = isPhrase(newVal) ? null : getRank(newVal);
   entry._loading = true;
+  touch(entry);
   save();
   enrichWord(entry);
   State.justAdded = newVal;
@@ -896,7 +992,8 @@ $('lookup-delete').addEventListener('click', () => {
   const L = State.lookup;
   if (!L || !L.existing) return;
   if (!confirm(`Delete "${L.word}"?`)) return;
-  State.vocab = State.vocab.filter(w => w.it !== L.word);
+  L.existing.deleted = true;
+  touch(L.existing);
   save();
   updateFilterBtn();
   renderVocab();
@@ -909,11 +1006,11 @@ $('lookup-add').addEventListener('click', () => {
   const entry = {
     it: L.word,
     en: (L.existing?.en) || '',
-    added: Date.now(),
+    added: Date.now(), updated: Date.now(),
     rank: isPhrase(L.word) ? null : getRank(L.word),
     pos: L.existing?.pos || '',
     ef: 2.5, interval: 0, reps: 0, due: Date.now(),
-    notes: '', tags: [],
+    notes: '', tags: [], deleted: false,
   };
   if (L.existing?._wikt) entry._wikt = L.existing._wikt;
   if (!entry.en) entry._loading = true;
@@ -932,7 +1029,6 @@ async function fetchTranslation(word) {
     return (j.responseData?.translatedText || '').trim();
   } catch { return ''; }
 }
-
 async function fetchWiktionary(word) {
   try {
     const r = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
@@ -959,6 +1055,7 @@ function openSettings() {
   $('setting-hide-tr').checked = !!Settings.hideTranslations;
   $('setting-scale').value = Settings.scale;
   $('scale-value').textContent = Math.round(Settings.scale * 100) + '%';
+  updateSyncUI();
   $('settings-modal').classList.remove('hidden');
 }
 function closeSettings() { $('settings-modal').classList.add('hidden'); }
@@ -1053,8 +1150,8 @@ function rate(q) {
   const R = State.review;
   if (!R) return;
   const w = R.queue[R.idx];
-  const live = State.vocab.find(x => x.it === w.it);
-  if (live) applySM2(live, q);
+  const live = State.vocab.find(x => x.it === w.it && !x.deleted);
+  if (live) { applySM2(live, q); touch(live); }
   save();
   R.idx++;
   nextCard();
@@ -1077,29 +1174,299 @@ function applySM2(w, q) {
   w.due = Date.now() + w.interval * 86400000;
 }
 
+// ===== Sync (Supabase) =====
+function updAt(w) { return w.updated || w.added || 0; }
+
+function mergeVocab(local, cloud) {
+  const map = new Map();
+  for (const w of cloud) map.set(w.it, w);
+  for (const w of local) {
+    const existing = map.get(w.it);
+    if (!existing || updAt(w) >= updAt(existing)) map.set(w.it, w);
+  }
+  return [...map.values()];
+}
+
+function schedulePush() {
+  if (!Sync.client || !Sync.session) return;
+  clearTimeout(Sync.pushTimer);
+  Sync.pushTimer = setTimeout(doPush, 1500);
+}
+
+async function doPush() {
+  if (!Sync.client || !Sync.session) return;
+  Sync.status = 'syncing';
+  updateSyncUI();
+  try {
+    const doc = { vocab: State.vocab, schema: 1 };
+    const { error } = await Sync.client
+      .from('vocab_docs')
+      .upsert({
+        user_id: Sync.session.user.id,
+        data: doc,
+        updated_at: new Date().toISOString(),
+      });
+    if (error) throw error;
+    Sync.status = 'idle';
+    Sync.lastSyncedAt = Date.now();
+    Sync.lastError = null;
+    purgeOldDeletions();
+  } catch (e) {
+    console.error('push failed', e);
+    Sync.status = 'error';
+    Sync.lastError = e.message || String(e);
+  }
+  updateSyncUI();
+}
+
+async function doPull() {
+  if (!Sync.client || !Sync.session) return null;
+  const { data, error } = await Sync.client
+    .from('vocab_docs')
+    .select('data, updated_at')
+    .eq('user_id', Sync.session.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? data.data : null;
+}
+
+async function syncInit() {
+  if (!Sync.client || !Sync.session) return;
+  Sync.status = 'syncing';
+  updateSyncUI();
+  try {
+    const cloudDoc = await doPull();
+    const cloudVocab = (cloudDoc && Array.isArray(cloudDoc.vocab)) ? cloudDoc.vocab : null;
+    if (cloudVocab == null) {
+      // No cloud row yet — push local up
+      await doPush();
+      return;
+    }
+    // Schema-migrate cloud entries in case they predate current fields
+    cloudVocab.forEach(w => {
+      if (w.updated == null) w.updated = w.added || 0;
+      if (w.deleted == null) w.deleted = false;
+      if (!Array.isArray(w.tags)) w.tags = [];
+      if (w.notes == null) w.notes = '';
+    });
+    if (activeVocab().length === 0 && State.vocab.length === 0) {
+      Sync.suppressPush = true;
+      State.vocab = cloudVocab;
+      save();
+      Sync.suppressPush = false;
+    } else {
+      const merged = mergeVocab(State.vocab, cloudVocab);
+      Sync.suppressPush = true;
+      State.vocab = merged;
+      save();
+      Sync.suppressPush = false;
+      await doPush(); // upload the merged result
+    }
+    Sync.status = 'idle';
+    Sync.lastSyncedAt = Date.now();
+    Sync.lastError = null;
+    renderVocab();
+    updateFilterBtn();
+  } catch (e) {
+    console.error('sync init failed', e);
+    Sync.status = 'error';
+    Sync.lastError = e.message || String(e);
+  }
+  updateSyncUI();
+}
+
+function purgeOldDeletions() {
+  const cutoff = Date.now() - 90 * 86400000;
+  const before = State.vocab.length;
+  State.vocab = State.vocab.filter(w => !(w.deleted && updAt(w) < cutoff));
+  if (State.vocab.length !== before) {
+    Sync.suppressPush = true;
+    save();
+    Sync.suppressPush = false;
+  }
+}
+
+function updateSyncUI() {
+  const hasClient = Sync.available && !!Sync.client;
+  const signedIn = !!Sync.session;
+  const dot = $('sync-dot');
+  dot.classList.remove('ok','syncing','error','off');
+  if (!hasClient || !signedIn) dot.classList.add('off');
+  else if (Sync.status === 'syncing') dot.classList.add('syncing');
+  else if (Sync.status === 'error') dot.classList.add('error');
+  else dot.classList.add('ok');
+  dot.title =
+    !hasClient ? 'Sync unavailable' :
+    !signedIn ? 'Not signed in' :
+    Sync.status === 'error' ? ('Error: ' + (Sync.lastError || 'unknown')) :
+    Sync.status === 'syncing' ? 'Syncing…' :
+    Sync.lastSyncedAt ? 'Synced ' + relativeTime(Sync.lastSyncedAt) :
+    'Ready';
+
+  // Settings modal sections
+  $('sync-unavailable').classList.toggle('hidden', hasClient);
+  if (!hasClient) {
+    $('sync-out').classList.add('hidden');
+    $('sync-verify').classList.add('hidden');
+    $('sync-in').classList.add('hidden');
+    return;
+  }
+  if (signedIn) {
+    $('sync-out').classList.add('hidden');
+    $('sync-verify').classList.add('hidden');
+    $('sync-in').classList.remove('hidden');
+    $('sync-email-signed').textContent = Sync.session.user.email || '—';
+    $('sync-status').textContent =
+      Sync.status === 'syncing' ? 'Syncing…' :
+      Sync.status === 'error' ? ('Error: ' + (Sync.lastError || 'unknown')) :
+      Sync.lastSyncedAt ? 'Last synced ' + relativeTime(Sync.lastSyncedAt) :
+      'Ready';
+  } else if (Sync.pendingEmail) {
+    $('sync-out').classList.add('hidden');
+    $('sync-verify').classList.remove('hidden');
+    $('sync-in').classList.add('hidden');
+    $('sync-email-shown').textContent = Sync.pendingEmail;
+  } else {
+    $('sync-out').classList.remove('hidden');
+    $('sync-verify').classList.add('hidden');
+    $('sync-in').classList.add('hidden');
+  }
+}
+
+async function sendOtp() {
+  if (!Sync.client) return;
+  const email = $('sync-email').value.trim();
+  if (!email) { alert('Enter your email first.'); return; }
+  const btn = $('sync-send-code');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const { error } = await Sync.client.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true }
+    });
+    if (error) throw error;
+    Sync.pendingEmail = email;
+    updateSyncUI();
+    setTimeout(() => $('sync-code').focus(), 50);
+  } catch (e) {
+    alert('Could not send code: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send code';
+  }
+}
+
+async function verifyOtp() {
+  if (!Sync.client) return;
+  const token = $('sync-code').value.trim();
+  const email = Sync.pendingEmail;
+  if (!token || !email) { alert('Enter the code from your email.'); return; }
+  const btn = $('sync-verify-btn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  try {
+    const { error } = await Sync.client.auth.verifyOtp({ email, token, type: 'email' });
+    if (error) throw error;
+    // onAuthStateChange will fire SIGNED_IN and trigger syncInit
+    $('sync-code').value = '';
+    $('sync-email').value = '';
+    Sync.pendingEmail = null;
+  } catch (e) {
+    alert('Invalid or expired code: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verify';
+  }
+}
+
+async function signOutClicked() {
+  if (!Sync.client) return;
+  if (!confirm('Sign out? Your local vocabulary stays on this device.')) return;
+  await Sync.client.auth.signOut();
+}
+
+// Wire sync UI
+$('sync-send-code').addEventListener('click', sendOtp);
+$('sync-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); sendOtp(); }
+});
+$('sync-verify-btn').addEventListener('click', verifyOtp);
+$('sync-cancel-btn').addEventListener('click', () => {
+  Sync.pendingEmail = null;
+  $('sync-code').value = '';
+  updateSyncUI();
+});
+$('sync-code').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); verifyOtp(); }
+});
+$('sync-push-btn').addEventListener('click', () => {
+  clearTimeout(Sync.pushTimer);
+  doPush();
+});
+$('sync-signout-btn').addEventListener('click', signOutClicked);
+
+// Periodic "Xs ago" refresh
+setInterval(() => {
+  if (Sync.session && Sync.lastSyncedAt) updateSyncUI();
+}, 15000);
+
 // ===== Boot =====
 load();
 applyScale();
 updateSortBtn();
 updateFilterBtn();
-// Normalise legacy entries that predate notes/tags
-State.vocab.forEach(w => {
-  if (w.notes == null) w.notes = '';
-  if (!Array.isArray(w.tags)) w.tags = [];
-});
+updateSyncUI();
 renderVocab();
 loadFreq().then(() => {
   let changed = false;
   State.vocab.forEach(w => {
-    if (!w.rank && !isPhrase(w.it)) {
+    if (!w.rank && !isPhrase(w.it) && !w.deleted) {
       const r = getRank(w.it);
       if (r) { w.rank = r; changed = true; }
     }
   });
-  if (changed) save();
+  if (changed) {
+    // Don't push for a purely local rank backfill
+    Sync.suppressPush = true;
+    save();
+    Sync.suppressPush = false;
+  }
   renderVocab();
 });
 setTimeout(() => input.focus(), 50);
+
+// Initialize Supabase async. If it fails, app runs in local-only mode.
+(async () => {
+  try {
+    const mod = await import('https://esm.sh/@supabase/supabase-js@2');
+    Sync.client = mod.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    });
+    Sync.available = true;
+
+    Sync.client.auth.onAuthStateChange((event, session) => {
+      const wasSignedIn = !!Sync.session;
+      Sync.session = session;
+      updateSyncUI();
+      if (session && !wasSignedIn) {
+        syncInit();
+      } else if (!session && wasSignedIn) {
+        Sync.lastSyncedAt = null;
+        clearTimeout(Sync.pushTimer);
+      }
+    });
+
+    const { data } = await Sync.client.auth.getSession();
+    Sync.session = data.session || null;
+    updateSyncUI();
+    if (Sync.session) syncInit();
+  } catch (e) {
+    console.warn('Sync unavailable:', e);
+    Sync.available = false;
+    updateSyncUI();
+  }
+})();
 
 })();
 </script>
