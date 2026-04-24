@@ -198,6 +198,17 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
   flex-direction: column; gap: 16px; color: var(--muted); }
 
 .empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* Update-available toast (shown when a newer app version is deployed) */
+#update-banner { position: fixed; left: 50%; bottom: calc(70px + var(--safe-bottom));
+  transform: translateX(-50%); background: var(--accent); color: #000;
+  padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  cursor: pointer; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: toastIn 0.3s ease; }
+@keyframes toastIn {
+  from { transform: translate(-50%, 20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
 </style>
 </head>
 <body>
@@ -1538,6 +1549,43 @@ loadFreq().then(() => {
   renderVocab();
 });
 setTimeout(() => input.focus(), 50);
+
+// ===== Service worker + in-session update detection =====
+// The SW makes all same-origin fetches network-first, so every PWA cold
+// launch gets the latest HTML from GitHub Pages (cache fallback offline).
+// The ETag check below notices new deploys *during* a session and pops a
+// "tap to update" toast so you don't have to force-quit the PWA.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(e => console.warn('sw register failed', e));
+}
+
+let appEtag = null;
+async function fetchAppEtag() {
+  try {
+    const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+    return r.headers.get('etag');
+  } catch { return null; }
+}
+async function checkForAppUpdate() {
+  if (document.getElementById('update-banner')) return;
+  const etag = await fetchAppEtag();
+  if (!etag) return;
+  if (appEtag == null) { appEtag = etag; return; }
+  if (etag !== appEtag) showUpdateBanner();
+}
+function showUpdateBanner() {
+  if (document.getElementById('update-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'update-banner';
+  b.textContent = '↻ Update available · tap to reload';
+  b.onclick = () => location.reload();
+  document.body.appendChild(b);
+}
+fetchAppEtag().then(e => { appEtag = e; });
+setInterval(checkForAppUpdate, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForAppUpdate();
+});
 
 // Initialize Supabase async. If it fails, app runs in local-only mode.
 (async () => {
