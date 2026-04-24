@@ -257,7 +257,7 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
       <div id="sync-out" class="hidden">
         <div class="setting-row stack">
           <div class="label">Sign in to sync across devices
-            <div class="sub">We'll email you a 6-digit code.</div>
+            <div class="sub">We'll email you a code.</div>
           </div>
           <input type="email" id="sync-email" placeholder="your@email.com"
                  autocapitalize="none" autocorrect="off" spellcheck="false"
@@ -268,11 +268,11 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
 
       <div id="sync-verify" class="hidden">
         <div class="setting-row stack">
-          <div class="label">Check <strong><span id="sync-email-shown"></span></strong> for a 6-digit code.
+          <div class="label">Check <strong><span id="sync-email-shown"></span></strong> for a code.
             <div class="sub">Enter it here — don't tap the magic link in the email, it opens Safari instead of this app.</div>
           </div>
-          <input type="text" id="sync-code" placeholder="000000"
-                 inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+          <input type="text" id="sync-code" placeholder="Enter code"
+                 inputmode="numeric" autocomplete="one-time-code" maxlength="10"
                  autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="done">
           <div class="row-buttons">
             <button id="sync-cancel-btn">Cancel</button>
