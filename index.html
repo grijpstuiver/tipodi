@@ -85,6 +85,7 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
 .word .w .en { font-size: calc(12px * var(--scale)); color: var(--muted); margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .word .w .en.loading { opacity: 0.5; font-style: italic; }
+.word .w .en.noted { color: #d8c49a; }
 .word .w .tagline { font-size: 10px; color: var(--muted); }
 .word .rank { font-size: 10px; background: var(--surface-2); padding: 3px 7px;
   border-radius: 999px; color: var(--muted); white-space: nowrap; }
@@ -571,8 +572,12 @@ function renderVocab() {
     const check = State.selectMode
       ? `<div class="check ${State.selected.has(w.it) ? 'sel' : ''}">${State.selected.has(w.it) ? '✓' : ''}</div>`
       : '';
-    const enClass = w._loading ? 'en loading' : 'en';
-    const enText = w._loading ? 'looking up…' : (w.en || '');
+    // Notes override the pulled translation in the list (user's manual correction).
+    const hasNote = !w._loading && w.notes && w.notes.trim();
+    const enClass = w._loading ? 'en loading' : (hasNote ? 'en noted' : 'en');
+    const enText = w._loading
+      ? 'looking up…'
+      : (hasNote ? w.notes.trim().split('\n')[0] : (w.en || ''));
     const enBlock = Settings.hideTranslations ? '' : `<div class="${enClass}">${esc(enText)}</div>`;
     const tagLine = (w.tags && w.tags.length)
       ? `<div class="tagline">${esc(w.tags.join(' · '))}</div>` : '';
