@@ -131,10 +131,14 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
   overflow: hidden; text-overflow: ellipsis; }
 #lookup-word:hover { text-decoration: underline dotted rgba(255,255,255,0.3);
   text-underline-offset: 4px; }
-.edit-btn { background: var(--surface-2); color: var(--muted); padding: 6px 8px;
+.edit-btn, .retry-btn { background: var(--surface-2); color: var(--muted); padding: 6px 8px;
   border-radius: 6px; line-height: 0; display: flex; align-items: center;
   justify-content: center; flex-shrink: 0; }
-.edit-btn:active { opacity: 0.5; }
+.edit-btn:active, .retry-btn:active { opacity: 0.5; }
+.retry-btn:disabled { opacity: 0.4; }
+.translation-row { display: flex; align-items: center; gap: 10px; }
+.translation-row .translation-text { flex: 1; min-width: 0; }
+.translation-row .translation-text.loading { opacity: 0.5; font-style: italic; }
 #edit-title-input { background: var(--surface); border: 1px solid var(--accent);
   border-radius: 8px; padding: 4px 8px; font-size: 22px; font-weight: 600;
   color: var(--text); width: 100%; outline: none; font-family: inherit; }
@@ -416,6 +420,12 @@ function load() {
     if (!Array.isArray(w.tags)) w.tags = [];
     if (w.updated == null) w.updated = w.added || Date.now();
     if (w.deleted == null) w.deleted = false;
+    // Scrub any MyMemory error messages that may have been saved as the
+    // translation during a transient API outage. They'll re-fetch lazily
+    // (next inspector open) or via the manual retry button.
+    if (w.en && /^(MYMEMORY |PLEASE SELECT|QUERY LENGTH|INVALID LANGUAGE|YOU USED ALL)/i.test(w.en)) {
+      w.en = '';
+    }
   });
 }
 function save() {
@@ -795,8 +805,16 @@ async function openLookup(word, existing) {
   if (!State.lookup || State.lookup.word !== word) return;
 
   let html = '';
+  const showRetry = !!existing;
   html += `<div class="lookup-section"><h4>Translation</h4>` +
-          `<div class="content">${esc(translation || '—')}</div></div>`;
+          `<div class="content translation-row">` +
+            `<span class="translation-text" id="translation-text">${esc(translation || '—')}</span>` +
+            (showRetry
+              ? `<button class="retry-btn" id="translation-retry" aria-label="Re-fetch translation" title="Re-fetch translation">` +
+                  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>` +
+                `</button>`
+              : '') +
+          `</div></div>`;
 
   if (isPhrase(word)) {
     const tokens = tokenize(word);
@@ -869,6 +887,8 @@ async function openLookup(word, existing) {
   if (existing) {
     wireNotes(existing);
     wireTags(existing);
+    const retryBtn = $('translation-retry');
+    if (retryBtn) retryBtn.addEventListener('click', () => retranslate());
   }
 
   save();
@@ -936,6 +956,30 @@ function wireTags(entry) {
     if (e.key === 'Enter') { e.preventDefault(); addTag(); inputEl.focus(); }
   });
   inputEl.addEventListener('blur', addTag);
+}
+
+async function retranslate() {
+  const L = State.lookup;
+  if (!L || !L.existing) return;
+  const btn = $('translation-retry');
+  const text = $('translation-text');
+  if (btn) btn.disabled = true;
+  if (text) {
+    text.classList.add('loading');
+    text.textContent = 'looking up…';
+  }
+  const fresh = await fetchTranslation(L.word);
+  if (btn) btn.disabled = false;
+  if (text) text.classList.remove('loading');
+  if (fresh) {
+    L.existing.en = fresh;
+    touch(L.existing);
+    save();
+    if (text) text.textContent = fresh;
+    renderVocab();
+  } else {
+    if (text) text.textContent = 'still failing — try again in a few minutes';
+  }
 }
 
 function closeLookup() {
@@ -1049,12 +1093,30 @@ $('lookup-add').addEventListener('click', () => {
   openLookup(L.word, entry);
 });
 
+// MyMemory occasionally returns 200 with an ALL-CAPS error in the
+// translatedText field (rate-limited, malformed query, etc). These look like
+// real translations to the rest of the app and end up persisted. Reject any
+// response shaped like an error so we never store one.
+const MYMEMORY_ERROR_RE = /^(MYMEMORY |PLEASE SELECT|QUERY LENGTH|INVALID LANGUAGE|YOU USED ALL)/i;
 async function fetchTranslation(word) {
   try {
     const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=it|en`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    return (j.responseData?.translatedText || '').trim();
-  } catch { return ''; }
+    if (j.responseStatus != null && j.responseStatus !== 200) {
+      throw new Error(j.responseDetails || ('API status ' + j.responseStatus));
+    }
+    const text = (j.responseData?.translatedText || '').trim();
+    if (!text) return '';
+    if (MYMEMORY_ERROR_RE.test(text)) throw new Error('API: ' + text.slice(0, 80));
+    return text;
+  } catch (e) {
+    console.warn('translation fetch failed for', word, '·', e.message || e);
+    return '';
+  }
+}
+function looksLikeTranslationError(s) {
+  return !!s && MYMEMORY_ERROR_RE.test(s);
 }
 async function fetchWiktionary(word) {
   try {
