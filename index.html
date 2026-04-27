@@ -65,8 +65,15 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
   border-bottom: 1px solid var(--surface-2); flex-shrink: 0; align-items: center;
   overflow-x: auto; }
 .toolbar-btn { background: var(--surface); font-size: 12px; padding: 6px 10px;
-  border-radius: 999px; white-space: nowrap; color: var(--muted); }
+  border-radius: 999px; white-space: nowrap; color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 .toolbar-btn.active { background: var(--accent-2); color: #fff; }
+
+#search-bar { display: flex; gap: 8px; padding: 6px 8px; background: var(--bg);
+  border-bottom: 1px solid var(--surface-2); flex-shrink: 0; align-items: center; }
+#search-bar input { flex: 1; font-size: 14px; padding: 8px 12px; }
+#search-bar button { background: var(--surface-2); padding: 8px 12px; border-radius: 8px;
+  flex-shrink: 0; font-size: 13px; color: var(--muted); }
 
 #vocab-list { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px;
   min-height: 0; -webkit-overflow-scrolling: touch; }
@@ -223,8 +230,16 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
              enterkeyhint="done" inputmode="text">
     </div>
     <div id="vocab-toolbar">
+      <button class="toolbar-btn" id="search-btn" aria-label="Search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      </button>
       <button class="toolbar-btn" id="sort-btn">Sort: Recent</button>
       <button class="toolbar-btn" id="filter-btn">Filter</button>
+    </div>
+    <div id="search-bar" class="hidden">
+      <input type="text" id="search-input" placeholder="Search words, translations, notes…"
+             autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search">
+      <button id="search-cancel">Cancel</button>
     </div>
     <div id="vocab-list"><div class="empty">No words yet. Type one above and press return.</div></div>
     <div id="vocab-footer">
@@ -358,7 +373,12 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
   <div class="modal-content">
     <div class="modal-header">
       <div style="font-weight: 600;">Review</div>
-      <button class="close" id="review-close">✕</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="close" id="review-edit" aria-label="Edit current word" title="Edit current word">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        </button>
+        <button class="close" id="review-close" aria-label="Close review">✕</button>
+      </div>
     </div>
     <div class="review-progress" id="review-progress"></div>
     <div class="review-card" id="review-card"></div>
@@ -387,6 +407,7 @@ const State = {
   lookup: null,
   review: null,
   justAdded: null,
+  searchQuery: '',
 };
 
 const Settings = {
@@ -702,6 +723,7 @@ function rankLabel(rank) {
 // ===== Filter & sort =====
 function applyFilter(list) {
   const { filterType, filterTags } = Settings;
+  const q = (State.searchQuery || '').toLowerCase().trim();
   return list.filter(w => {
     if (w.deleted) return false;
     if (filterType === 'word' && isPhrase(w.it)) return false;
@@ -709,6 +731,10 @@ function applyFilter(list) {
     if (filterTags.length > 0) {
       const wt = w.tags || [];
       if (!filterTags.some(t => wt.includes(t))) return false;
+    }
+    if (q) {
+      const hay = [w.it, w.en, w.notes, ...(w.tags || [])].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
@@ -938,6 +964,27 @@ function openFilter() {
   $('filter-modal').classList.remove('hidden');
 }
 function closeFilter() { $('filter-modal').classList.add('hidden'); }
+
+// Search bar toggle. Closing clears the query so re-opening starts fresh.
+$('search-btn').addEventListener('click', () => {
+  $('vocab-toolbar').classList.add('hidden');
+  $('search-bar').classList.remove('hidden');
+  setTimeout(() => $('search-input').focus(), 30);
+});
+$('search-cancel').addEventListener('click', () => {
+  $('search-input').value = '';
+  State.searchQuery = '';
+  $('search-bar').classList.add('hidden');
+  $('vocab-toolbar').classList.remove('hidden');
+  renderVocab();
+});
+$('search-input').addEventListener('input', e => {
+  State.searchQuery = e.target.value;
+  renderVocab();
+});
+$('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
 
 $('filter-btn').addEventListener('click', openFilter);
 $('filter-close').addEventListener('click', closeFilter);
@@ -1183,6 +1230,9 @@ async function retranslate() {
 function closeLookup() {
   $('lookup-modal').classList.add('hidden');
   State.lookup = null;
+  // If we're inside a review session, refresh the current card so any
+  // rename / translation tweak / deletion takes effect immediately.
+  if (State.review) nextCard();
 }
 $('lookup-close').addEventListener('click', closeLookup);
 $('lookup-close-2').addEventListener('click', closeLookup);
@@ -1411,9 +1461,22 @@ function closeReview() {
 }
 $('review-close').addEventListener('click', closeReview);
 
+// Pencil button in the review header — open the inspector for the current
+// card so you can fix a typo, rename, edit notes, etc. without leaving the
+// session. closeLookup will refresh the card on return.
+$('review-edit').addEventListener('click', () => {
+  const R = State.review;
+  if (!R || R.idx >= R.queue.length) return;
+  const w = R.queue[R.idx];
+  if (!w || w.deleted) return;
+  openLookup(w.it, w);
+});
+
 function nextCard() {
   const R = State.review;
   if (!R) return;
+  // If a card was deleted from the inspector mid-review, skip it.
+  while (R.idx < R.queue.length && R.queue[R.idx].deleted) R.idx++;
   if (R.idx >= R.queue.length) {
     $('review-progress').textContent = `${R.queue.length} / ${R.queue.length}`;
     $('review-card').innerHTML =
