@@ -590,8 +590,8 @@ function suggestedThemes(text) {
   const t = (text || '').toLowerCase().trim();
   if (!t) return [];
   if (THEME_MAP[t]) return [...THEME_MAP[t]];
-  // For a phrase that isn't an exact match, union themes from its words.
-  if (isPhrase(t)) {
+  // Multi-token entries (real phrases AND article+noun): union themes from tokens.
+  if (/\s/.test(t)) {
     const themes = new Set();
     tokenize(t).forEach(tok => {
       const tags = THEME_MAP[tok];
@@ -665,7 +665,34 @@ function shuffle(a) {
   }
   return a;
 }
-function isPhrase(it) { return /\s/.test((it || '').trim()); }
+// Italian articles that may precede a noun. l'/un'/dell' etc. are always
+// glued to the noun (no whitespace) so they're absent from this set.
+const ITALIAN_ARTICLES = new Set([
+  'il','lo','la','i','gli','le',                 // definite
+  'un','uno','una',                              // indefinite
+  'del','dello','della','dei','degli','delle',   // partitive
+]);
+
+// "una compagnia", "il film", "le mele" → treated as a word, not a phrase:
+// for classification (isPhrase), styling, theme suggestions, frequency rank,
+// and Wiktionary lookups (which key on the noun).
+function isArticleNoun(text) {
+  const parts = (text || '').trim().split(/\s+/);
+  return parts.length === 2 && ITALIAN_ARTICLES.has(parts[0].toLowerCase());
+}
+function effectiveLookupWord(text) {
+  const t = (text || '').toLowerCase().trim();
+  if (!t) return '';
+  if (isArticleNoun(t)) return t.split(/\s+/)[1];
+  return t;
+}
+
+function isPhrase(it) {
+  const t = (it || '').trim();
+  if (!/\s/.test(t)) return false;
+  if (isArticleNoun(t)) return false;
+  return true;
+}
 function tokenize(phrase) {
   return (phrase || '').split(/\s+/)
     .map(w => w.toLowerCase().replace(/[^\p{L}'-]/gu, ''))
@@ -863,7 +890,7 @@ function commitWord(keepFocus) {
   } else {
     entry = {
       it: raw, en: '', added: Date.now(), updated: Date.now(),
-      rank: isPhrase(raw) ? null : getRank(raw),
+      rank: isPhrase(raw) ? null : getRank(effectiveLookupWord(raw)),
       pos: '', ef: 2.5, interval: 0, reps: 0, due: Date.now(),
       notes: '', tags: suggestedThemes(raw), deleted: false,
       _autoTagged: true,
@@ -880,9 +907,11 @@ function commitWord(keepFocus) {
 
 async function enrichWord(w) {
   try {
+    // Translation keeps the article (so "una compagnia" → "a company");
+    // Wiktionary keys on the noun for cleaner definitions.
     const [translation, wikt] = await Promise.all([
       fetchTranslation(w.it),
-      fetchWiktionary(w.it),
+      fetchWiktionary(effectiveLookupWord(w.it)),
     ]);
     if (translation) w.en = translation;
     if (wikt && wikt.definitions[0]) w.pos = wikt.definitions[0].pos;
@@ -1016,7 +1045,7 @@ async function openLookup(word, existing) {
 
   State.lookup = { word, existing };
   $('lookup-word').textContent = word;
-  const rank = (existing && existing.rank) || getRank(word);
+  const rank = (existing && existing.rank) || getRank(effectiveLookupWord(word));
   const rankText = isPhrase(word)
     ? 'phrase'
     : (rank ? `frequency rank #${rank} (${rankLabel(rank)})`
@@ -1038,7 +1067,7 @@ async function openLookup(word, existing) {
     translation = t;
     if (existing && t) { existing.en = t; touch(existing); }
   }));
-  if (!wikt) needs.push(fetchWiktionary(word).then(w => {
+  if (!wikt) needs.push(fetchWiktionary(effectiveLookupWord(word)).then(w => {
     wikt = w;
     if (existing) {
       existing._wikt = w;
@@ -1073,7 +1102,8 @@ async function openLookup(word, existing) {
         `</div></div>`;
     }
   } else {
-    const related = phrasesContaining(word);
+    // For article+noun entries, find phrases containing the noun.
+    const related = phrasesContaining(effectiveLookupWord(word));
     if (related.length) {
       html += `<div class="lookup-section"><h4>Used in your phrases</h4><div>` +
         related.map(p =>
@@ -1298,7 +1328,7 @@ function applyRename(oldVal, newVal) {
   entry.en = '';
   entry.pos = '';
   delete entry._wikt;
-  entry.rank = isPhrase(newVal) ? null : getRank(newVal);
+  entry.rank = isPhrase(newVal) ? null : getRank(effectiveLookupWord(newVal));
   entry._loading = true;
   touch(entry);
   save();
@@ -1326,7 +1356,7 @@ $('lookup-add').addEventListener('click', () => {
     it: L.word,
     en: (L.existing?.en) || '',
     added: Date.now(), updated: Date.now(),
-    rank: isPhrase(L.word) ? null : getRank(L.word),
+    rank: isPhrase(L.word) ? null : getRank(effectiveLookupWord(L.word)),
     pos: L.existing?.pos || '',
     ef: 2.5, interval: 0, reps: 0, due: Date.now(),
     notes: '', tags: suggestedThemes(L.word), deleted: false,
@@ -1910,7 +1940,7 @@ loadFreq().then(() => {
   let changed = false;
   State.vocab.forEach(w => {
     if (!w.rank && !isPhrase(w.it) && !w.deleted) {
-      const r = getRank(w.it);
+      const r = getRank(effectiveLookupWord(w.it));
       if (r) { w.rank = r; changed = true; }
     }
   });
