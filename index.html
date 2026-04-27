@@ -188,7 +188,9 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
 #sync-code { font-size: 18px; letter-spacing: 4px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Review modal */
-#review-modal .modal-content { height: 100%; max-height: 100%; }
+#review-modal .modal-content { height: 100%; max-height: 100%;
+  /* Push the close button below the iPhone status bar / notch */
+  padding-top: var(--safe-top); }
 .review-progress { padding: 8px 14px; text-align: center; color: var(--muted); font-size: 12px; }
 .review-card { flex: 1; background: var(--surface); margin: 14px; border-radius: 16px;
   display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
@@ -322,6 +324,11 @@ input[type=text]:focus, input[type=email]:focus { border-color: var(--accent); }
         </span>
         <input type="range" id="setting-scale" min="0.8" max="1.6" step="0.05" style="width: 140px;">
       </div>
+
+      <div class="section-heading">Review</div>
+      <label class="setting-row"><input type="radio" name="review-dir" value="it-en"><span class="label">Italian → English</span></label>
+      <label class="setting-row"><input type="radio" name="review-dir" value="en-it"><span class="label">English → Italian</span></label>
+      <label class="setting-row"><input type="radio" name="review-dir" value="mixed"><span class="label">Mixed (random per card)</span></label>
     </div>
   </div>
 </div>
@@ -388,6 +395,7 @@ const Settings = {
   sortBy: 'recent',
   filterType: 'all',
   filterTags: [],
+  reviewDirection: 'it-en',  // 'it-en' | 'en-it' | 'mixed'
 };
 
 const Sync = {
@@ -406,6 +414,173 @@ const Sync = {
 const SORT_LABELS = { recent: 'Recent', frequency: 'Frequent', quizzed: 'Quizzed' };
 const SORT_ORDER = ['recent', 'frequency', 'quizzed'];
 
+// ===== Theme dictionary =====
+// Common Italian beginner vocab grouped by theme. Used to auto-categorize
+// new entries and (once) backfill existing untagged entries.
+// Words may appear under multiple themes — that's intentional (e.g., 'amore'
+// is both feelings and dating). Edit freely; flattened into a lookup map at boot.
+const THEMES_RAW = {
+  greetings: [
+    'ciao','salve','buongiorno','buonasera','buonanotte','arrivederci','addio',
+    'piacere','benvenuto','benvenuta','scusa','scusi','scusami','grazie','grazie mille',
+    'prego','per favore','perfavore','mi chiamo','come ti chiami','come si chiama',
+    'di dove sei','sono di','come stai','come sta','sto bene','sto male','e tu','e lei',
+    'piacere di conoscerti','a presto','a dopo','a domani','signore','signora','signorina',
+    'sì','no','forse','capire','capisco','non capisco','parlare','parlo italiano','parlo inglese',
+  ],
+  family: [
+    'famiglia','padre','madre','papà','mamma','fratello','sorella','figlio','figlia','figli',
+    'marito','moglie','nonno','nonna','nonni','zio','zia','cugino','cugina','genitore','genitori',
+    'bambino','bambina','ragazzo','ragazza','amico','amica','suocero','suocera','nipote','nipoti',
+    'parente','parenti','gemello','gemella',
+  ],
+  food: [
+    'pane','pasta','pizza','riso','formaggio','carne','pesce','pollo','manzo','maiale',
+    'prosciutto','salame','insalata','verdura','verdure','frutta','mela','mele','banana',
+    'arancia','fragola','fragole','pomodoro','pomodori','cipolla','aglio','patata','patate',
+    'zucchero','sale','pepe','olio','burro','uovo','uova','cucinare','mangiare','cena','pranzo',
+    'colazione','ristorante','dolce','gelato','torta','biscotto','biscotti','panino','pizzeria',
+    'cuoco','ricetta','fame','sapore','cibo','cucina','piatto','piatti','antipasto','contorno',
+    'menu','cameriere','cameriera','conto','mancia',
+  ],
+  drinks: [
+    'acqua','vino','birra','caffè','tè','latte','succo','bere','bibita','bevanda','espresso',
+    'cappuccino','alcolici','alcol','brindisi','sete','bicchiere','tazza','bottiglia','cocktail',
+    'aperitivo','spritz','prosecco','grappa','limonata',
+  ],
+  numbers: [
+    'zero','uno','due','tre','quattro','cinque','sei','sette','otto','nove','dieci',
+    'undici','dodici','tredici','quattordici','quindici','sedici','diciassette','diciotto',
+    'diciannove','venti','trenta','quaranta','cinquanta','sessanta','settanta','ottanta',
+    'novanta','cento','mille','milione','primo','prima','secondo','seconda','terzo','terza',
+    'numero','quanto','quanti','quanta','quante',
+  ],
+  time: [
+    'giorno','notte','mattina','pomeriggio','sera','ora','ore','minuto','minuti','secondi',
+    'settimana','mese','mesi','anno','anni','ieri','oggi','domani','dopodomani',
+    'lunedì','martedì','mercoledì','giovedì','venerdì','sabato','domenica',
+    'gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto',
+    'settembre','ottobre','novembre','dicembre','presto','tardi','sempre','mai','adesso',
+    'durante','fine settimana','weekend','orologio','calendario','mezzogiorno','mezzanotte',
+    'che ora è','a che ora','data','compleanno',
+  ],
+  weather: [
+    'tempo','sole','pioggia','neve','nuvola','nuvole','vento','temperatura','freddo','caldo',
+    'fresco','umido','secco','soleggiato','piovoso','nevoso','nuvoloso','tempesta','temporale',
+    'fulmine','tuono','arcobaleno','ghiaccio','gelo','piovere','nevicare','nebbia',
+  ],
+  directions: [
+    'sinistra','destra','dritto','indietro','avanti','sopra','sotto','vicino','lontano','qui',
+    'qua','là','lì','dove','davanti','dietro','su','giù','nord','sud','est','ovest','mappa',
+    'angolo','incrocio','semaforo','indicazioni','girare',
+  ],
+  feelings: [
+    'felice','triste','contento','contenta','arrabbiato','arrabbiata','stanco','stanca',
+    'annoiato','annoiata','sorpreso','sorpresa','spaventato','spaventata','preoccupato',
+    'preoccupata','nervoso','nervosa','calmo','calma','eccitato','eccitata','innamorato',
+    'innamorata','geloso','gelosa','orgoglioso','orgogliosa','amare','odiare','sentire',
+    'emozione','emozioni','sentimento','paura','gioia','sorriso','ridere','piangere',
+    'piacere','amore','speranza','sognare','sogno',
+  ],
+  body: [
+    'testa','capelli','viso','faccia','occhio','occhi','naso','bocca','labbra','dente','denti',
+    'lingua','orecchio','orecchie','collo','spalla','spalle','braccio','braccia','mano','mani',
+    'dito','dita','gamba','gambe','ginocchio','piede','piedi','schiena','cuore','stomaco',
+    'pancia','salute','malato','malata','dottore','dottoressa','medico','medicina','ospedale',
+    'dolore','malattia','sangue','pelle','muscolo','osso','corpo','febbre','tosse','mal di testa',
+  ],
+  colors: [
+    'colore','colori','rosso','rossa','blu','verde','giallo','gialla','nero','nera','bianco',
+    'bianca','marrone','grigio','grigia','rosa','viola','arancione','azzurro','azzurra',
+  ],
+  clothing: [
+    'vestito','abito','vestiti','pantaloni','gonna','camicia','maglietta','maglione','giacca',
+    'cappotto','scarpa','scarpe','calza','calze','cappello','cintura','cravatta','sciarpa',
+    'guanto','guanti','borsa','occhiali','indossare','vestirsi','costume','taglia','taglie',
+    'abbigliamento','moda','tasca','bottone','zip','cerniera',
+  ],
+  home: [
+    'casa','appartamento','camera','cucina','bagno','salotto','sala','letto','divano','sedia',
+    'sedie','tavolo','tavoli','porta','finestra','parete','pavimento','tetto','giardino',
+    'balcone','terrazzo','frigorifero','lavatrice','doccia','vasca','specchio','lampada',
+    'lampade','mobili','mobile','chiave','chiavi','soffitta','cantina','garage','cortile',
+    'corridoio','scala','scale','stanza',
+  ],
+  work: [
+    'lavoro','ufficio','lavorare','capo','collega','colleghi','riunione','computer','telefono',
+    'professione','mestiere','medico','insegnante','studente','studentessa','ingegnere',
+    'avvocato','cuoco','infermiere','infermiera','soldi','stipendio','banca','ditta','azienda',
+    'impiegato','impiegata','segretario','segretaria','dipendente','cliente','fattura',
+    'contratto','curriculum','colloquio','disoccupato','pensione',
+  ],
+  travel: [
+    'viaggio','viaggiare','vacanza','vacanze','hotel','albergo','valigia','valigie','biglietto',
+    'biglietti','passaporto','aeroporto','stazione','turista','turismo','museo','monumento',
+    'spiaggia','mare','montagna','sciare','escursione','gita','prenotazione','prenotare',
+    'partire','arrivare','volo','voli','guida','visita','souvenir','dogana','frontiera',
+    'visto','itinerario',
+  ],
+  shopping: [
+    'negozio','mercato','supermercato','prezzo','costo','comprare','vendere','sconto','sconti',
+    'soldi','denaro','euro','contanti','carta','scontrino','ricevuta','misura','vetrina',
+    'commesso','commessa','acquistare','acquisto','regalo','regali','cassa','pagamento',
+    'pagare','costoso','economico','saldo','saldi','sacchetto','centro commerciale','offerta',
+  ],
+  transport: [
+    'auto','macchina','treno','treni','bus','autobus','tram','taxi','aereo','aerei','bicicletta',
+    'bici','moto','motocicletta','nave','metro','metropolitana','fermata','autostrada','strada',
+    'via','guidare','andare','venire','parcheggio','benzina','patente','biglietteria','binario',
+    'pullman',
+  ],
+  nature: [
+    'natura','albero','alberi','fiore','fiori','erba','foresta','bosco','fiume','lago','mare',
+    'oceano','isola','deserto','cielo','stella','stelle','luna','sole','pianta','piante',
+    'ambiente','paesaggio','parco','collina','valle','roccia','sasso','montagna','montagne',
+    'prato','campagna',
+  ],
+  animals: [
+    'animale','animali','cane','gatto','cavallo','uccello','pesce','gallina','gallo','mucca',
+    'maiale','pecora','capra','topo','leone','tigre','elefante','orso','scimmia','lupo',
+    'volpe','coniglio','serpente','ragno','ape','farfalla','mosca','zanzara','formica',
+    'lumaca','anatra','oca','piccione','cavalletta','squalo','delfino',
+  ],
+  dating: [
+    'amore','amare','baciare','bacio','baci','abbracciare','abbraccio','fidanzato','fidanzata',
+    'romantico','romantica','sposarsi','matrimonio','sposo','sposa','appuntamento','attraente',
+    'bello','bella','carino','carina','sexy','attrazione','innamorarsi','gelosia','cuore',
+    'flirt','flirtare','cotta','innamorato','innamorata','fidanzarsi','lasciarsi','tradire',
+    'amante','single','coppia','relazione',
+  ],
+};
+
+let THEME_MAP = null;
+function buildThemeMap() {
+  THEME_MAP = Object.create(null);
+  for (const [theme, words] of Object.entries(THEMES_RAW)) {
+    for (const w of words) {
+      const k = w.toLowerCase();
+      if (!THEME_MAP[k]) THEME_MAP[k] = [];
+      if (!THEME_MAP[k].includes(theme)) THEME_MAP[k].push(theme);
+    }
+  }
+}
+function suggestedThemes(text) {
+  if (!THEME_MAP) buildThemeMap();
+  const t = (text || '').toLowerCase().trim();
+  if (!t) return [];
+  if (THEME_MAP[t]) return [...THEME_MAP[t]];
+  // For a phrase that isn't an exact match, union themes from its words.
+  if (isPhrase(t)) {
+    const themes = new Set();
+    tokenize(t).forEach(tok => {
+      const tags = THEME_MAP[tok];
+      if (tags) tags.forEach(th => themes.add(th));
+    });
+    return [...themes];
+  }
+  return [];
+}
+
 function load() {
   try { State.vocab = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch {}
   try { State.freq = JSON.parse(localStorage.getItem(FREQ_KEY) || 'null'); } catch {}
@@ -414,6 +589,7 @@ function load() {
   if (!SORT_LABELS[Settings.sortBy]) Settings.sortBy = 'recent';
   if (!['all','word','phrase'].includes(Settings.filterType)) Settings.filterType = 'all';
   if (!Array.isArray(Settings.filterTags)) Settings.filterTags = [];
+  if (!['it-en','en-it','mixed'].includes(Settings.reviewDirection)) Settings.reviewDirection = 'it-en';
   // Schema migration: ensure each entry has notes/tags/updated/deleted
   State.vocab.forEach(w => {
     if (w.notes == null) w.notes = '';
@@ -427,6 +603,27 @@ function load() {
       w.en = '';
     }
   });
+  // One-time auto-tag backfill from the theme dictionary. Skips entries
+  // already auto-tagged (so cleared tags stay cleared) and entries that
+  // already have user tags (we never overwrite manual choices).
+  let backfilledTags = 0;
+  State.vocab.forEach(w => {
+    if (w.deleted || w._autoTagged) return;
+    if (w.tags.length === 0) {
+      const sug = suggestedThemes(w.it);
+      if (sug.length) {
+        w.tags = sug;
+        touch(w);
+        backfilledTags++;
+      }
+    }
+    w._autoTagged = true;
+  });
+  if (backfilledTags > 0) {
+    // Persist immediately. Sync push will happen once Supabase is ready.
+    try { localStorage.setItem(LS_KEY, JSON.stringify(State.vocab)); } catch {}
+    console.info(`Auto-tagged ${backfilledTags} entries from theme dictionary.`);
+  }
 }
 function save() {
   localStorage.setItem(LS_KEY, JSON.stringify(State.vocab));
@@ -642,7 +839,8 @@ function commitWord(keepFocus) {
       it: raw, en: '', added: Date.now(), updated: Date.now(),
       rank: isPhrase(raw) ? null : getRank(raw),
       pos: '', ef: 2.5, interval: 0, reps: 0, due: Date.now(),
-      notes: '', tags: [], deleted: false,
+      notes: '', tags: suggestedThemes(raw), deleted: false,
+      _autoTagged: true,
       _loading: true,
     };
     State.vocab.push(entry);
@@ -1081,7 +1279,8 @@ $('lookup-add').addEventListener('click', () => {
     rank: isPhrase(L.word) ? null : getRank(L.word),
     pos: L.existing?.pos || '',
     ef: 2.5, interval: 0, reps: 0, due: Date.now(),
-    notes: '', tags: [], deleted: false,
+    notes: '', tags: suggestedThemes(L.word), deleted: false,
+    _autoTagged: true,
   };
   if (L.existing?._wikt) entry._wikt = L.existing._wikt;
   if (!entry.en) entry._loading = true;
@@ -1144,6 +1343,10 @@ function openSettings() {
   $('setting-hide-tr').checked = !!Settings.hideTranslations;
   $('setting-scale').value = Settings.scale;
   $('scale-value').textContent = Math.round(Settings.scale * 100) + '%';
+  ['it-en','en-it','mixed'].forEach(v => {
+    const el = document.querySelector(`input[name="review-dir"][value="${v}"]`);
+    if (el) el.checked = Settings.reviewDirection === v;
+  });
   updateSyncUI();
   $('settings-modal').classList.remove('hidden');
 }
@@ -1161,6 +1364,12 @@ $('setting-scale').addEventListener('input', e => {
   applyScale();
   saveSettings();
 });
+$('settings-modal').addEventListener('change', e => {
+  if (e.target.matches('input[name="review-dir"]') && e.target.checked) {
+    Settings.reviewDirection = e.target.value;
+    saveSettings();
+  }
+});
 
 // ===== Backdrop click to dismiss =====
 ['lookup-modal', 'settings-modal', 'filter-modal'].forEach(id => {
@@ -1173,7 +1382,23 @@ $('setting-scale').addEventListener('input', e => {
 });
 
 // ===== Review (SM-2) =====
+// User notes override the pulled translation as the "answer" side, since
+// notes are typically the user's correction.
+function effectiveTranslation(w) {
+  if (w.notes && w.notes.trim()) return w.notes.trim().split('\n')[0];
+  return w.en || '';
+}
+
 function startReview(pool) {
+  // Pure EN→IT mode needs a translation to prompt with — drop entries that
+  // have neither w.en nor notes. Mixed mode falls back per-card instead.
+  if (Settings.reviewDirection === 'en-it') {
+    pool = pool.filter(w => effectiveTranslation(w));
+    if (pool.length === 0) {
+      alert('No words have translations available for English → Italian review yet.');
+      return;
+    }
+  }
   State.review = { queue: shuffle(pool.slice()), idx: 0, flipped: false };
   $('review-modal').classList.remove('hidden');
   nextCard();
@@ -1205,15 +1430,26 @@ function nextCard() {
   }
   const w = R.queue[R.idx];
   R.flipped = false;
+
+  // Per-card direction: respect the setting, with mixed coin-flipping per
+  // card and en-it falling back to it-en if a card has no translation.
+  let dir = Settings.reviewDirection;
+  if (dir === 'mixed') dir = Math.random() < 0.5 ? 'it-en' : 'en-it';
+  const tr = effectiveTranslation(w);
+  if (dir === 'en-it' && !tr) dir = 'it-en';
+  const promptText = dir === 'en-it' ? tr : w.it;
+  const answerText = dir === 'en-it' ? w.it : tr;
+
   const card = $('review-card');
-  card.innerHTML = `<div><div class="face">${esc(w.it)}</div><div class="hint">tap to reveal</div></div>`;
+  card.innerHTML = `<div><div class="face">${esc(promptText)}</div><div class="hint">tap to reveal</div></div>`;
   card.onclick = () => {
     R.flipped = true;
-    card.innerHTML = `<div><div class="face">${esc(w.it)}</div>` +
-                     `<div class="back">${esc(w.en || '(no translation saved)')}</div></div>`;
+    card.innerHTML = `<div><div class="face">${esc(promptText)}</div>` +
+                     `<div class="back">${esc(answerText || '(no translation saved)')}</div></div>`;
     showRating();
   };
-  $('review-progress').textContent = `${R.idx + 1} / ${R.queue.length}`;
+  const dirLabel = dir === 'en-it' ? 'EN → IT' : 'IT → EN';
+  $('review-progress').textContent = `${R.idx + 1} / ${R.queue.length} · ${dirLabel}`;
   $('review-rating').innerHTML = '';
 }
 
